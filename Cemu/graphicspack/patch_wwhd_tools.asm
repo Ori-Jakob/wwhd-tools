@@ -1,7 +1,7 @@
 ; Cemu hook stubs for wwhd_tools.rpl; the reason numbers mirror RPL_CEMU_* in include/app/cemu.h
 
 [WWHDv16]
-moduleMatches = 0x475bd29f, 0xb7e748de
+moduleMatches = 0x475bd29f, 0xb7e748de, 0x18005ce3
 
 0x0200E6F0 = _cCt_Counter_rest:
 0x0200E55C = _cCcS_Move_rest:
@@ -59,6 +59,74 @@ _rpl_ok:
 .string "[wwhd_tools] rpl_cemu_entry resolved\n"
 .align 4
 
+_rpl_alloc_msg:
+.string "[wwhd_tools] loader alloc %u bytes align %u -> %08x\n"
+.align 4
+
+_rpl_game_alloc:
+.int 0
+_rpl_game_free:
+.int 0
+
+; Cemu places a late-loaded rpl's data with the allocator the game registered,
+; which is ErrEula's small heap here; use the MEM2 base heap instead
+_rpl_alloc:
+    stwu  r1, -0x30(r1)
+    mflr  r0
+    stw   r0, 0x24(r1)
+    stw   r3, 0x08(r1)
+    stw   r4, 0x0C(r1)
+    stw   r5, 0x10(r1)
+    li    r3, 1
+    bl    import.coreinit.MEMGetBaseHeapHandle
+    cmpwi r3, 0
+    beq   _rpl_alloc_fail
+    lwz   r4, 0x08(r1)
+    lwz   r5, 0x0C(r1)
+    bl    import.coreinit.MEMAllocFromExpHeapEx
+    stw   r3, 0x14(r1)
+    lwz   r5, 0x10(r1)
+    stw   r3, 0(r5)
+    mr    r6, r3
+    lwz   r4, 0x08(r1)
+    lwz   r5, 0x0C(r1)
+    lis   r3, _rpl_alloc_msg@ha
+    addi  r3, r3, _rpl_alloc_msg@l
+    bl    import.coreinit.OSReport
+    lwz   r3, 0x14(r1)
+    cmpwi r3, 0
+    beq   _rpl_alloc_fail
+    li    r3, 0
+    b     _rpl_alloc_done
+_rpl_alloc_fail:
+    lwz   r5, 0x10(r1)
+    li    r0, 0
+    stw   r0, 0(r5)
+    lis   r3, 0xFFFF
+    ori   r3, r3, 0xFFFF
+_rpl_alloc_done:
+    lwz   r0, 0x24(r1)
+    mtlr  r0
+    addi  r1, r1, 0x30
+    blr
+
+_rpl_free:
+    stwu  r1, -0x30(r1)
+    mflr  r0
+    stw   r0, 0x24(r1)
+    stw   r3, 0x08(r1)
+    li    r3, 1
+    bl    import.coreinit.MEMGetBaseHeapHandle
+    cmpwi r3, 0
+    beq   _rpl_free_done
+    lwz   r4, 0x08(r1)
+    bl    import.coreinit.MEMFreeToExpHeap
+_rpl_free_done:
+    lwz   r0, 0x24(r1)
+    mtlr  r0
+    addi  r1, r1, 0x30
+    blr
+
 _rpl_resolve:
     stwu  r1, -0x30(r1)
     mflr  r0
@@ -72,11 +140,29 @@ _rpl_resolve:
     li    r4, 1
     stb   r4, _rpl_state@l(r3)
 
+    lis   r3, _rpl_game_alloc@ha
+    addi  r3, r3, _rpl_game_alloc@l
+    lis   r4, _rpl_game_free@ha
+    addi  r4, r4, _rpl_game_free@l
+    bl    import.coreinit.OSDynLoad_GetAllocator
+
+    lis   r3, _rpl_alloc@ha
+    addi  r3, r3, _rpl_alloc@l
+    lis   r4, _rpl_free@ha
+    addi  r4, r4, _rpl_free@l
+    bl    import.coreinit.OSDynLoad_SetAllocator
+
     lis   r3, _rpl_name@ha
     addi  r3, r3, _rpl_name@l
     lis   r4, _rpl_module@ha
     addi  r4, r4, _rpl_module@l
     bl    import.coreinit.OSDynLoad_Acquire
+
+    lis   r3, _rpl_game_alloc@ha
+    lwz   r3, _rpl_game_alloc@l(r3)
+    lis   r4, _rpl_game_free@ha
+    lwz   r4, _rpl_game_free@l(r4)
+    bl    import.coreinit.OSDynLoad_SetAllocator
 
     lis   r3, _rpl_module@ha
     lwz   r3, _rpl_module@l(r3)
@@ -791,7 +877,7 @@ gx2depth_real:
 0x02035274 = bla context_hook
 
 [WWHDv16_USA]
-moduleMatches = 0x475bd29f
+moduleMatches = 0x475bd29f, 0x18005ce3
 
 0x025D42F0 = _fapGm_Execute_rest:
 0x026FF5B0 = _dMsgBox_setInput_rest:

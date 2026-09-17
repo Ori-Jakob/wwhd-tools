@@ -1,6 +1,6 @@
 [Definition]
-titleIds = 0005000010143500,0005000010143600,0005000010143400
+titleIds = 0005000010143500,0005000010143600,0005000010143599
 name = "WWHD Tools"
 path = "The Legend of Zelda: The Wind Waker HD/Mods/WWHD Tools"
 description = Loads WWHD Tools into The Wind Waker HD. Practice tools, cheats and an ImGui overlay. By n0ted
-version = 8
+version = 7
