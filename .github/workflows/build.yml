@@ -1,0 +1,114 @@
+# Builds wwhd_tools.rpl and the rpl-loader plugin and packs WWHD-Tools-<version>.zip.
+#
+# Zip layout (mirrored by build.ps1; keep the two in step):
+#
+#   Cemu/WWHD-Tools/rules.txt                        graphics pack
+#   Cemu/WWHD-Tools/patch_wwhd_tools.asm
+#   Cemu/WWHD-Tools/code/wwhd_tools.rpl
+#   Wii U/wiiu/environments/aroma/plugins/rpl_loader.wps
+#   Wii U/wiiu/rpl-loader/universal/wwhd_tools.rpl
+#
+# Every push and pull request uploads the zip as a workflow artifact. Pushing
+# a tag named v<version> also attaches it to a GitHub release.
+#
+# The loader is built from the external/wii-u-rpl-loader submodule, which is
+# https://github.com/Ori-Jakob/wii-u-rpl-loader pinned to the commit this
+# repo was last tested against. Bump the submodule to pick up a newer loader.
+
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkitppc:latest
+
+    steps:
+      - name: Check out (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install host tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends python3 zip bzip2
+
+      # WUPS and the WUMS libraries are not in the devkitPro package repo, so
+      # they are built from source into $DEVKITPRO (their "install" targets
+      # pack a tar.bz2 named after "git describe", so no shallow clone). The loader links
+      # libfunctionpatcher, libmappedmemory and (if present) libnotifications
+      # against WUPS; libkernel is listed in the loader README as well.
+      - name: Cache WUPS and WUMS
+        id: wups-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            /opt/devkitpro/wups
+            /opt/devkitpro/wums
+          key: wups-wums-${{ runner.os }}-v1
+
+      - name: Install WUPS and WUMS from source
+        if: steps.wups-cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          mkdir -p /tmp/deps && cd /tmp/deps
+          for repo in libfunctionpatcher libmappedmemory libkernel libnotifications WiiUPluginSystem; do
+            git clone "https://github.com/wiiu-env/$repo.git"
+            make -C "$repo" -j"$(nproc)" install
+          done
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build rpl_loader.wps
+        run: make -C external/wii-u-rpl-loader -j"$(nproc)"
+
+      - name: Build wwhd_tools.rpl
+        run: make -j"$(nproc)" VERSION="${{ steps.version.outputs.version }}"
+
+      - name: Package
+        run: |
+          set -e
+          V="${{ steps.version.outputs.version }}"
+          S=dist/WWHD-Tools
+          rm -rf dist && mkdir -p \
+            "$S/Cemu/WWHD-Tools/code" \
+            "$S/Wii U/wiiu/environments/aroma/plugins" \
+            "$S/Wii U/wiiu/rpl-loader/universal"
+          cp Cemu/graphicspack/*                      "$S/Cemu/WWHD-Tools/"
+          cp wwhd_tools.rpl                           "$S/Cemu/WWHD-Tools/code/"
+          cp external/wii-u-rpl-loader/rpl_loader.wps "$S/Wii U/wiiu/environments/aroma/plugins/"
+          cp wwhd_tools.rpl                           "$S/Wii U/wiiu/rpl-loader/universal/"
+          (cd "$S" && zip -r -X "../WWHD-Tools-$V.zip" .)
+          unzip -l "dist/WWHD-Tools-$V.zip"
+          echo "zip=dist/WWHD-Tools-$V.zip" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WWHD-Tools-${{ steps.version.outputs.version }}
+          path: ${{ env.zip }}
+          if-no-files-found: error
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.zip }}
+          generate_release_notes: true

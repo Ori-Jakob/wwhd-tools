@@ -1,0 +1,6 @@
+[submodule "external/libwwhd"]
+	path = external/libwwhd
+	url = https://github.com/Ori-Jakob/libwwhd.git
+[submodule "external/wii-u-rpl-loader"]
+	path = external/wii-u-rpl-loader
+	url = https://github.com/Ori-Jakob/wii-u-rpl-loader.git

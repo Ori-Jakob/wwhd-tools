@@ -1,0 +1,8 @@
+build/
+build_*/
+.lastconfig
+*.rpl
+*.elf
+*.map
+*.lst
+dist/
