@@ -37,6 +37,7 @@ struct State {
     Pose pose; cXyz savedEye, savedCenter; float speed;
     bool frozen; Freeze freeze;
     dCamera_style_c* heldStyle; u16 heldFlags;
+    bool origCaptured; dCam_modeFn_t origFn[dCamAlg_MAX];
 };
 
 static State s;
@@ -98,7 +99,70 @@ static void seedPose(const dCamera_c* cam)
                 (double)s.pose.eye.x, (double)s.pose.eye.y, (double)s.pose.eye.z);
 }
 
-static int modeFn(dCamera_c* cam, int)
+static int modeFn(dCamera_c* cam, int styleIdx);
+
+static bool captureOriginals()
+{
+    if (s.origCaptured)
+        return true;
+    const dCamera_algEntry_c* t = dCam_getAlgTable();
+    if (!t)
+        return false;
+    for (int i = 0; i < dCamAlg_MAX; ++i) {
+        const wwhd_gptr_t fn = t[i].mFn;
+        if (!fn || fn == (wwhd_gptr_t)(uintptr_t)&modeFn)
+            return false;
+        s.origFn[i] = (dCam_modeFn_t)(uintptr_t)fn;
+    }
+    s.origCaptured = true;
+    return true;
+}
+
+/* The game's mode function for the style Run is dispatching, resolved the way
+ * Run does it: mStyleIdx -> style record -> mAlgorithm -> table slot. */
+static dCam_modeFn_t originalFor(const dCamera_c* cam, int* algOut)
+{
+    const dCamera_style_c* style = dCam_getStyle(cam->mStyleIdx);
+    if (!style)
+        style = dCam_getCurStyle(const_cast<dCamera_c*>(cam));
+    const int alg = style ? style->mAlgorithm : -1;
+    if (algOut)
+        *algOut = alg;
+    if (!s.origCaptured || alg < 0 || alg >= dCamAlg_MAX)
+        return nullptr;
+    return s.origFn[alg];
+}
+
+/* The last dispatch we answer. Run has already run its type/mode/style
+ * machine for this frame, and releasing mCameraPlay usually made it pick a new
+ * mode, whose one init frame (mModeFrame == 0) is this very call. Answering it
+ * ourselves would leave the game's function to blend from a work block it
+ * never initialised (see dCam_restartMode in d_camera.h), so restart the mode
+ * and let the real function take the frame from the view we hand it. */
+static int handBack(dCamera_c* cam, int styleIdx)
+{
+    restoreStyle();
+    if (s.restoreView) {
+        cam->mWorkEye = s.savedEye;
+        cam->mWorkCenter = s.savedCenter;
+    }
+    dCam_restartMode(cam);
+
+    int alg = -1;
+    const dCam_modeFn_t fn = originalFor(cam, &alg);
+    Logger::Log("[flycam] hand-back: style %d alg %d fn %08X frame %d",
+                (int)cam->mStyleIdx, alg, (unsigned)(uintptr_t)fn, (int)cam->mModeFrame);
+
+    s.leaveDone = true;
+    s.phase = PHASE_OFF;
+    if (!fn) {
+        cam->mModeFrame = -1;
+        return 1;
+    }
+    return fn(cam, styleIdx);
+}
+
+static int modeFn(dCamera_c* cam, int styleIdx)
 {
     if (s.phase == PHASE_ARMING) {
         seedPose(cam);
@@ -114,16 +178,13 @@ static int modeFn(dCamera_c* cam, int)
         cam->mWorkCenter.x = s.pose.eye.x + fwd.x * kTargetDist;
         cam->mWorkCenter.y = s.pose.eye.y + fwd.y * kTargetDist;
         cam->mWorkCenter.z = s.pose.eye.z + fwd.z * kTargetDist;
-    } else if (s.phase == PHASE_LEAVING) {
-        restoreStyle();
-        if (s.restoreView) {
-            cam->mWorkEye = s.savedEye;
-            cam->mWorkCenter = s.savedCenter;
-        }
-        s.leaveDone = true;
-        s.phase = PHASE_OFF;
+        return 1;
     }
-    return 1;
+    if (s.phase == PHASE_LEAVING)
+        return handBack(cam, styleIdx);
+
+    const dCam_modeFn_t fn = originalFor(cam, nullptr);
+    return fn ? fn(cam, styleIdx) : 1;
 }
 
 static WuPatch::Handle swapHandle()
@@ -211,6 +272,8 @@ static void activate()
         return fail("Game data address unresolved");
     if (swapHandle() == WuPatch::kInvalidHandle)
         return fail("Camera table not declared");
+    if (!captureOriginals())
+        return fail("Camera table not readable");
 
     WuPatch::Data::SetEnabled(s.swap, true);
     s.swapOn = true;
