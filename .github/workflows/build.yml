@@ -1,19 +1,4 @@
 # Builds wwhd_tools.rpl and the rpl-loader plugin and packs WWHD-Tools-<version>.zip.
-#
-# Zip layout (mirrored by build.ps1; keep the two in step):
-#
-#   Cemu/WWHD-Tools/rules.txt                        graphics pack
-#   Cemu/WWHD-Tools/patch_wwhd_tools.asm
-#   Cemu/WWHD-Tools/code/wwhd_tools.rpl
-#   Wii U/wiiu/environments/aroma/plugins/rpl_loader.wps
-#   Wii U/wiiu/rpl-loader/universal/wwhd_tools.rpl
-#
-# Every push and pull request uploads the zip as a workflow artifact. Pushing
-# a tag named v<version> also attaches it to a GitHub release.
-#
-# The loader is built from the external/wii-u-rpl-loader submodule, which is
-# https://github.com/Ori-Jakob/wii-u-rpl-loader pinned to the commit this
-# repo was last tested against. Bump the submodule to pick up a newer loader.
 
 name: build
 
@@ -43,11 +28,6 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends python3 zip bzip2
 
-      # WUPS and the WUMS libraries are not in the devkitPro package repo, so
-      # they are built from source into $DEVKITPRO (their "install" targets
-      # pack a tar.bz2 named after "git describe", so no shallow clone). The loader links
-      # libfunctionpatcher, libmappedmemory and (if present) libnotifications
-      # against WUPS; libkernel is listed in the loader README as well.
       - name: Cache WUPS and WUMS
         id: wups-cache
         uses: actions/cache@v4
@@ -55,16 +35,17 @@ jobs:
           path: |
             /opt/devkitpro/wups
             /opt/devkitpro/wums
-          key: wups-wums-${{ runner.os }}-v1
+          key: wups-wums-${{ runner.os }}-v2
 
       - name: Install WUPS and WUMS from source
         if: steps.wups-cache.outputs.cache-hit != 'true'
         run: |
           set -e
           mkdir -p /tmp/deps && cd /tmp/deps
+          # Serial on purpose: libmappedmemory's install moves its .ld before -j has built it.
           for repo in libfunctionpatcher libmappedmemory libkernel libnotifications WiiUPluginSystem; do
             git clone "https://github.com/wiiu-env/$repo.git"
-            make -C "$repo" -j"$(nproc)" install
+            make -C "$repo" install
           done
 
       - name: Resolve version
