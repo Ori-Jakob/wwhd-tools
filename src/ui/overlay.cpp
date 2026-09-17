@@ -243,7 +243,8 @@ bool PrepareFrame(float logicalWidth, float logicalHeight)
 
     Window::ResolveFocusRequest();
     Nav::Update(ImGui::GetIO(), Input::Current(),
-                s_menuOpen && !oskOwnsInput && !Rebind::BlocksMenuInput());
+                s_menuOpen && !oskOwnsInput && !Rebind::BlocksMenuInput(),
+                !s_menuOpen && QuickAccess::IsPageFocused() && !oskOwnsInput);
 
     if (Config::g_settings.toastsEnabled)
         Notifications::Draw(ImGui::GetIO());

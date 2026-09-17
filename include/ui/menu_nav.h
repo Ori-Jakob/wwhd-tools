@@ -28,7 +28,8 @@ void        ResetBindings();
 bool        Conflicts(Action target, uint32_t buttons, Action other);
 const char* Validate(Action target, uint32_t buttons);
 
-void Update(ImGuiIO& io, const Input::Snapshot& snapshot, bool menuOpen);
+// pageOnly: the quick access page has focus without the menu; only stick scrolling runs.
+void Update(ImGuiIO& io, const Input::Snapshot& snapshot, bool menuOpen, bool pageOnly);
 void RegisterCurrentTabBar();
 
 void RequestMenuBarFocus();

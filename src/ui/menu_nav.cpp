@@ -722,10 +722,12 @@ static void clampWindowsToViewport(ImGuiIO& io)
     }
 }
 
-void Update(ImGuiIO& io, const Input::Snapshot& snap, bool menuOpen)
+void Update(ImGuiIO& io, const Input::Snapshot& snap, bool menuOpen, bool pageOnly)
 {
     if (!menuOpen) {
         invalidateCycle();
+        if (pageOnly)
+            scrollFocusedWindow(io, snap);
         return;
     }
 
