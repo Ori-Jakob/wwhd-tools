@@ -1,7 +1,7 @@
 ; Cemu hook stubs for wwhd_tools.rpl; the reason numbers mirror RPL_CEMU_* in include/app/cemu.h
 
 [WWHDv16]
-moduleMatches = 0x475bd29f, 0xb7e748de, 0x18005ce3
+moduleMatches = 0x475bd29f, 0xb7e748de
 
 0x0200E6F0 = _cCt_Counter_rest:
 0x0200E55C = _cCcS_Move_rest:
@@ -877,7 +877,7 @@ gx2depth_real:
 0x02035274 = bla context_hook
 
 [WWHDv16_USA]
-moduleMatches = 0x475bd29f, 0x18005ce3
+moduleMatches = 0x475bd29f
 
 0x025D42F0 = _fapGm_Execute_rest:
 0x026FF5B0 = _dMsgBox_setInput_rest:
