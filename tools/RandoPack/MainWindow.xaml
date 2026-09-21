@@ -1,0 +1,90 @@
+<Window x:Class="RandoPack.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WWHD Tools – Randomizer pack"
+        Width="1000" Height="760" MinWidth="780" MinHeight="600"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="6,0,0,0"/>
+            <Setter Property="MinWidth" Value="90"/>
+        </Style>
+        <Style TargetType="GroupBox">
+            <Setter Property="Padding" Value="8"/>
+            <Setter Property="Margin" Value="0,8,0,0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="150"/>
+        </Grid.RowDefinitions>
+
+        <!-- Cemu install -->
+        <DockPanel Grid.Row="0" LastChildFill="True">
+            <TextBlock DockPanel.Dock="Left" Text="Cemu:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <Button DockPanel.Dock="Right" x:Name="btnRescan" Content="Rescan" Click="BtnRescan_Click"/>
+            <Button DockPanel.Dock="Right" x:Name="btnBrowseCemu" Content="Browse Cemu.exe…" Click="BtnBrowseCemu_Click"/>
+            <ComboBox x:Name="cmbCemu" DisplayMemberPath="Label" VerticalAlignment="Center"
+                      SelectionChanged="CmbCemu_SelectionChanged"/>
+        </DockPanel>
+        <TextBlock Grid.Row="1" x:Name="txtCemuInfo" Margin="0,6,0,0" TextWrapping="Wrap"
+                   FontFamily="Consolas" FontSize="12" Foreground="#444"/>
+
+        <!-- Titles -->
+        <GroupBox Grid.Row="2" Header="Wind Waker HD titles found (extracted folders only; .wua archives are not inspected)">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                    <TextBlock x:Name="txtScanState" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#666"/>
+                    <Button x:Name="btnChecksum" Content="Checksum a file…" Click="BtnChecksum_Click"
+                            ToolTip="Print Cemu's moduleMatches checksum of any rpx or rpl"/>
+                    <Button x:Name="btnAddFolder" Content="Add game folder…" Click="BtnAddFolder_Click"
+                            ToolTip="A folder holding code/, content/ and meta/, or a folder of such games"/>
+                </StackPanel>
+                <ListView x:Name="lstTitles" SelectionMode="Single" SelectionChanged="LstTitles_SelectionChanged">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Kind" Width="120" DisplayMemberBinding="{Binding KindLabel}"/>
+                            <GridViewColumn Header="Title ID" Width="140" DisplayMemberBinding="{Binding TitleId}"/>
+                            <GridViewColumn Header="Checksum" Width="110" DisplayMemberBinding="{Binding ChecksumLabel}"/>
+                            <GridViewColumn Header="Folder" Width="560" DisplayMemberBinding="{Binding GameDir}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </DockPanel>
+        </GroupBox>
+
+        <!-- Pack -->
+        <GroupBox Grid.Row="3" Header="WWHD Tools graphics pack">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" VerticalAlignment="Top">
+                    <Button x:Name="btnOpenPack" Content="Open folder" Click="BtnOpenPack_Click" Margin="6,0,0,6"/>
+                    <Button x:Name="btnPickPack" Content="Pick pack…" Click="BtnPickPack_Click"
+                            ToolTip="Choose a pack folder by hand if it is not under Cemu's graphicPacks"/>
+                </StackPanel>
+                <TextBlock x:Name="txtPack" TextWrapping="Wrap" FontFamily="Consolas" FontSize="12"/>
+            </DockPanel>
+        </GroupBox>
+
+        <!-- Options and apply -->
+        <DockPanel Grid.Row="4" Margin="0,10,0,0">
+            <Button DockPanel.Dock="Right" x:Name="btnApply" Content="Apply seed to pack" FontWeight="Bold"
+                    Padding="16,6" IsEnabled="False" Click="BtnApply_Click"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <CheckBox x:Name="chkBackup" Content="Keep .bak copies of the edited files" IsChecked="True" Margin="0,0,20,0"/>
+                <CheckBox x:Name="chkPrune" Content="Drop checksums of earlier seeds"
+                          ToolTip="Removes every moduleMatches entry that is neither a retail checksum nor this seed"/>
+            </StackPanel>
+        </DockPanel>
+
+        <!-- Log -->
+        <TextBox Grid.Row="5" x:Name="txtLog" Margin="0,10,0,0" IsReadOnly="True" FontFamily="Consolas" FontSize="12"
+                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap"/>
+    </Grid>
+</Window>
