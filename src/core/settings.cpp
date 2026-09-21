@@ -6,6 +6,7 @@
 #include "hud/hud_frame_stats.h"
 #include "hud/hud_game_info.h"
 #include "hud/hud_input_viewer.h"
+#include "hud/hud_zombie_hover.h"
 #include "ui/menu_nav.h"
 #include "ui/quick_access.h"
 
@@ -28,6 +29,10 @@ void ResetToDefaults()
     s.flyCamEnabled  = true;
     s.flyCamSpeed    = 20.0f;
     s.mssEnabled     = false;
+
+    s.zombieHoverEnabled = false;
+    s.zombieHoverHeal    = true;
+    s.zombieHoverSimPerfect = false;
 
     s.collisionView  = false;
     s.collisionAt    = true;
@@ -56,5 +61,6 @@ void ResetToDefaults()
     Hud::InputViewer::ResetToDefaults();
     Hud::GameInfo::ResetToDefaults();
     Hud::FrameStats::ResetToDefaults();
+    Hud::ZombieHover::ResetToDefaults();
 }
 }

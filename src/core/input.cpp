@@ -5,6 +5,7 @@
 #include "core/logger.h"
 #include "core/settings.h"
 #include "tools/mss.h"
+#include "tools/zombie_hover.h"
 
 #include <padscore/wpad.h>
 #include <vpad/input.h>
@@ -35,6 +36,7 @@ static RplTouch s_lastTouch = {};
 static bool     s_haveTouch = false;
 static bool     s_wasTouched = false;
 static bool     s_stickPushed = false;
+static bool     s_buttonsPushed = false;
 
 static const float kStickDeadzone = 0.06f;
 
@@ -69,6 +71,7 @@ void OnApplicationStart()
     s_haveTouch = false;
     s_wasTouched = false;
     s_stickPushed = false;
+    s_buttonsPushed = false;
 }
 
 void OnApplicationEnd()
@@ -80,6 +83,7 @@ void OnApplicationEnd()
     s_block = false;
     s_blockPushed = false;
     s_stickPushed = false;
+    s_buttonsPushed = false;
 }
 
 static void pushBlockState()
@@ -216,6 +220,27 @@ static void pushStick(uint32_t held)
         s_gatedLogged = false;
 }
 
+static void pushButtons(uint32_t held)
+{
+    if (!s_host || !s_host->setButtons)
+        return;
+
+    uint32_t mask = 0;
+    const bool wanted = Tools::ZombieHover::NextButtons(held, &mask);
+    const bool gated = s_block || s_drainHeld;
+    if (wanted && !gated) {
+        s_host->setButtons(s_host, mask);
+        if (!s_buttonsPushed)
+            Logger::Log("button macro on, held=%08X", held);
+        s_buttonsPushed = true;
+    } else if (s_buttonsPushed) {
+        s_host->setButtons(s_host, 0);
+        s_buttonsPushed = false;
+        Logger::Log("button macro off, wanted=%d block=%d drain=%d", (int)wanted,
+                    (int)s_block, (int)s_drainHeld);
+    }
+}
+
 void Sample()
 {
     if (!s_host)
@@ -258,6 +283,7 @@ void Sample()
     detectOverlayHotkeys(s_accumHeld);
     pushBlockState();
     pushStick(s_accumHeld);
+    pushButtons(s_accumHeld);
 }
 
 void BeginFrame()

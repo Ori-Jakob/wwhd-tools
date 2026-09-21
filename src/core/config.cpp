@@ -13,6 +13,7 @@
 #include "hud/hud_frame_stats.h"
 #include "hud/hud_game_info.h"
 #include "hud/hud_input_viewer.h"
+#include "hud/hud_zombie_hover.h"
 #include "ui/menu_nav.h"
 #include "ui/quick_access.h"
 #include "ui/window_state.h"
@@ -413,6 +414,10 @@ static void applyJson(const char* text)
     loadFrameStatsRows(root);
     Hud::FrameStats::ApplyState();
 
+    loadWindow(root, "zombieHover", Hud::ZombieHover::State(),
+               Hud::ZombieHover::MIN_WIDTH, Hud::ZombieHover::MAX_WIDTH);
+    Hud::ZombieHover::ApplyState();
+
     cJSON_Delete(root);
 }
 
@@ -494,6 +499,8 @@ void Flush()
     if (cJSON* statsJson = cJSON_AddArrayToObject(root, "frameStatsOrder"))
         for (unsigned i = 0; i < Hud::FrameStats::ROW_COUNT; ++i)
             cJSON_AddItemToArray(statsJson, cJSON_CreateNumber((double)statsOrder[i]));
+
+    saveWindow(root, "zombieHover", Hud::ZombieHover::State());
 
     char* text = cJSON_Print(root);
     cJSON_Delete(root);

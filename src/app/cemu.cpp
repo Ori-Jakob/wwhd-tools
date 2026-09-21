@@ -54,6 +54,9 @@ float    s_stickX = 0.0f, s_stickY = 0.0f;
 
 bool     s_vpadStickApplied = false;
 bool     s_kpadStickApplied = false;
+uint32_t s_buttonsRequested = 0;
+uint32_t s_vpadButtonsApplied = 0;
+uint32_t s_kpadButtonsApplied[RPL_KPAD_CHANNELS];
 uint32_t s_vpadReads = 0;
 uint32_t s_vpadReadsLogged = 0xFFFFFFFFu;
 unsigned s_vpadRateLogs = 0;
@@ -309,6 +312,60 @@ void hostSetStick(const RplHost*, const float* leftXY)
     s_stickHeld = true;
 }
 
+void hostSetButtons(const RplHost*, uint32_t vpadButtonMask)
+{
+    s_buttonsRequested = vpadButtonMask;
+}
+
+void editButtons(uint32_t& hold, uint32_t& trigger, uint32_t& release,
+                 uint32_t current, uint32_t previous)
+{
+    const uint32_t physicalHold = hold;
+    const uint32_t physicalRelease = release;
+    trigger &= ~previous;
+    release &= ~current;
+    trigger |= (current & ~previous) & ~(physicalHold | physicalRelease);
+    release |= (previous & ~current) & ~physicalHold;
+    hold = physicalHold | current;
+}
+
+struct ButtonMap { uint32_t vpad; uint32_t pro; uint32_t classic; };
+const ButtonMap kButtonMap[] = {
+    { VPAD_BUTTON_A,       WPAD_PRO_BUTTON_A,       WPAD_CLASSIC_BUTTON_A },
+    { VPAD_BUTTON_B,       WPAD_PRO_BUTTON_B,       WPAD_CLASSIC_BUTTON_B },
+    { VPAD_BUTTON_X,       WPAD_PRO_BUTTON_X,       WPAD_CLASSIC_BUTTON_X },
+    { VPAD_BUTTON_Y,       WPAD_PRO_BUTTON_Y,       WPAD_CLASSIC_BUTTON_Y },
+    { VPAD_BUTTON_LEFT,    WPAD_PRO_BUTTON_LEFT,    WPAD_CLASSIC_BUTTON_LEFT },
+    { VPAD_BUTTON_RIGHT,   WPAD_PRO_BUTTON_RIGHT,   WPAD_CLASSIC_BUTTON_RIGHT },
+    { VPAD_BUTTON_UP,      WPAD_PRO_BUTTON_UP,      WPAD_CLASSIC_BUTTON_UP },
+    { VPAD_BUTTON_DOWN,    WPAD_PRO_BUTTON_DOWN,    WPAD_CLASSIC_BUTTON_DOWN },
+    { VPAD_BUTTON_ZL,      WPAD_PRO_BUTTON_ZL,      WPAD_CLASSIC_BUTTON_ZL },
+    { VPAD_BUTTON_ZR,      WPAD_PRO_BUTTON_ZR,      WPAD_CLASSIC_BUTTON_ZR },
+    { VPAD_BUTTON_L,       WPAD_PRO_BUTTON_L,       WPAD_CLASSIC_BUTTON_L },
+    { VPAD_BUTTON_R,       WPAD_PRO_BUTTON_R,       WPAD_CLASSIC_BUTTON_R },
+    { VPAD_BUTTON_PLUS,    WPAD_PRO_BUTTON_PLUS,    WPAD_CLASSIC_BUTTON_PLUS },
+    { VPAD_BUTTON_MINUS,   WPAD_PRO_BUTTON_MINUS,   WPAD_CLASSIC_BUTTON_MINUS },
+    { VPAD_BUTTON_HOME,    WPAD_PRO_BUTTON_HOME,    WPAD_CLASSIC_BUTTON_HOME },
+    { VPAD_BUTTON_STICK_L, WPAD_PRO_BUTTON_STICK_L, 0 },
+    { VPAD_BUTTON_STICK_R, WPAD_PRO_BUTTON_STICK_R, 0 },
+};
+
+uint32_t mapProButtons(uint32_t vpad)
+{
+    uint32_t out = 0;
+    for (const ButtonMap& m : kButtonMap)
+        if (vpad & m.vpad) out |= m.pro;
+    return out;
+}
+
+uint32_t mapClassicButtons(uint32_t vpad)
+{
+    uint32_t out = 0;
+    for (const ButtonMap& m : kButtonMap)
+        if (vpad & m.vpad) out |= m.classic;
+    return out;
+}
+
 void buildHost()
 {
     memset(&s_host, 0, sizeof(s_host));
@@ -333,6 +390,7 @@ void buildHost()
     s_host.kpad         = hostKpad;
     s_host.setInputMode = hostSetInputMode;
     s_host.setStick     = hostSetStick;
+    s_host.setButtons   = hostSetButtons;
 }
 
 bool s_initialising = false;
@@ -523,7 +581,10 @@ void noteVpad(VPADStatus* buffers, uint32_t count)
     }
 
     const bool block = s_inputMode == RPL_INPUT_BLOCK;
-    if (!block && !s_stickHeld)
+    const uint32_t buttons = s_buttonsRequested;
+    const uint32_t previous = s_vpadButtonsApplied;
+    s_vpadButtonsApplied = buttons;
+    if (!block && !s_stickHeld && buttons == 0 && previous == 0)
         return;
 
     for (uint32_t i = 0; i < count; ++i) {
@@ -541,6 +602,7 @@ void noteVpad(VPADStatus* buffers, uint32_t count)
         } else if (block) {
             s.leftStick.x = s.leftStick.y = 0.0f;
         }
+        editButtons(s.hold, s.trigger, s.release, buttons, i == 0 ? previous : buttons);
     }
 }
 
@@ -597,7 +659,10 @@ void noteKpad(KPADStatus* buffers, uint32_t count, uint32_t chan)
     }
 
     const bool block = s_inputMode == RPL_INPUT_BLOCK;
-    if (!block && !s_stickHeld)
+    const uint32_t buttons = s_buttonsRequested;
+    const uint32_t previous = s_kpadButtonsApplied[chan];
+    s_kpadButtonsApplied[chan] = buttons;
+    if (!block && !s_stickHeld && buttons == 0 && previous == 0)
         return;
 
     for (uint32_t i = 0; i < count; ++i) {
@@ -619,6 +684,15 @@ void noteKpad(KPADStatus* buffers, uint32_t count, uint32_t chan)
             s.pro.leftStick.x = s.pro.leftStick.y = 0.0f;
             s.classic.leftStick.x = s.classic.leftStick.y = 0.0f;
             s.nunchuk.stick.x = s.nunchuk.stick.y = 0.0f;
+        }
+        const uint32_t prev = i == 0 ? previous : buttons;
+        if (s.extensionType == WPAD_EXT_PRO_CONTROLLER) {
+            editButtons(s.pro.hold, s.pro.trigger, s.pro.release,
+                        mapProButtons(buttons), mapProButtons(prev));
+        } else if (s.extensionType == WPAD_EXT_CLASSIC ||
+                   s.extensionType == WPAD_EXT_MPLUS_CLASSIC) {
+            editButtons(s.classic.hold, s.classic.trigger, s.classic.release,
+                        mapClassicButtons(buttons), mapClassicButtons(prev));
         }
     }
 }

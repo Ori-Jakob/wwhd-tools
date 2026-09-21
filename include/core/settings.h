@@ -24,6 +24,10 @@ struct Settings {
     float    flyCamSpeed;
     bool     mssEnabled;
 
+    bool     zombieHoverEnabled;
+    bool     zombieHoverHeal;
+    bool     zombieHoverSimPerfect;
+
     bool     collisionView;
     bool     collisionAt;
     bool     collisionTg;

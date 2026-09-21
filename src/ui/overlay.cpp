@@ -12,12 +12,14 @@
 #include "hud/hud_frame_stats.h"
 #include "hud/hud_game_info.h"
 #include "hud/hud_input_viewer.h"
+#include "hud/hud_zombie_hover.h"
 #include "render/renderer.h"
 #include "tools/flycam.h"
 #include "tools/mss.h"
 #include "tools/save_loader.h"
 #include "tools/save_states.h"
 #include "tools/stage_control.h"
+#include "tools/zombie_hover.h"
 #include "ui/init_toast.h"
 #include "ui/menu.h"
 #include "ui/menu_nav.h"
@@ -79,6 +81,7 @@ void OnApplicationStart()
     Osk::OnApplicationStart();
     Tools::FlyCam::OnApplicationStart();
     Tools::Mss::OnApplicationStart();
+    Tools::ZombieHover::OnApplicationStart();
     Tools::SaveStates::OnApplicationStart();
     Tools::SaveLoader::OnApplicationStart();
     Hud::GameInfo::OnApplicationStart();
@@ -180,6 +183,7 @@ void Tick()
     Tools::SaveStates::Tick(gameTools);
     Tools::SaveLoader::Tick();
     Tools::StageControl::Tick(gameTools);
+    Tools::ZombieHover::Tick(gameTools);
 
     static int s_gameOnTv = -1;
     const int gameOnTv = wwhd_isTvShowingGame() != 0;
@@ -235,6 +239,7 @@ bool PrepareFrame(float logicalWidth, float logicalHeight)
         Hud::GameInfo::DrawWindow(s_menuOpen);
         Hud::InputViewer::DrawWindow(s_menuOpen);
         Hud::FrameStats::DrawWindow(s_menuOpen);
+        Hud::ZombieHover::DrawWindow(s_menuOpen);
         QuickAccess::DrawPageWindow(s_menuOpen);
     }
 

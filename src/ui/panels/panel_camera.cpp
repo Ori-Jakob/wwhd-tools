@@ -9,9 +9,11 @@
 #include "hud/hud_frame_stats.h"
 #include "hud/hud_game_info.h"
 #include "hud/hud_input_viewer.h"
+#include "hud/hud_zombie_hover.h"
 #include "tools/flycam.h"
 #include "tools/mss.h"
 #include "tools/stage_control.h"
+#include "tools/zombie_hover.h"
 #include "ui/quick_access.h"
 #include "ui/ui_control.h"
 #include "ui/ui_field.h"
@@ -52,6 +54,61 @@ static bool drawMss(const Control::Descriptor* d, Control::Surface)
     }
     ImGui::SameLine(0.0f, 0.0f);
     Hotkey::DrawText(Hotkeys::Get(Hotkeys::HOTKEY_MSS), " (hold ", ")", true);
+    return changed;
+}
+
+static bool drawZombieHover(const Control::Descriptor* d, Control::Surface)
+{
+    bool enabled = Tools::ZombieHover::IsEnabled();
+    const bool changed = ImGui::Checkbox(d->name, &enabled);
+    if (changed) {
+        Tools::ZombieHover::SetEnabled(enabled);
+        Config::MarkDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Rates each hover input (perfect/good/ok/bad) and can heal you instead of a game over.");
+    return changed;
+}
+
+static bool drawZombieHoverOptions(const Control::Descriptor*, Control::Surface surface)
+{
+    if (!Tools::ZombieHover::IsEnabled())
+        return false;
+    ImGui::Indent();
+    bool changed = false;
+    Ui::WindowState& win = Hud::ZombieHover::State();
+    changed |= ImGui::Checkbox("HUD window##zh", &win.enabled);
+    if (surface == Control::SURFACE_MENU) {
+        ImGui::SameLine();
+        Hud::ZombieHover::DrawHistoryButton();
+    }
+    Config::Settings& s = Config::g_settings;
+    changed |= ImGui::Checkbox("Heal instead of game over##zh", &s.zombieHoverHeal);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("At zero life, a quarter heart is given the frame the game would start the\n"
+                          "death sequence, so a missed or finished hover never ends in a game over.");
+    if (ImGui::Button("1/4 heart, no fairies##zh"))
+        Tools::ZombieHover::SetupPractice();
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Sets life to one quarter heart and empties every bottled fairy, so the\n"
+                          "next hit is lethal and nothing revives Link.");
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!Tools::ZombieHover::CanRestorePractice());
+    if (ImGui::Button("Restore##zh"))
+        Tools::ZombieHover::RestorePractice();
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Puts back the life and the fairies taken, into bottles that are still empty.");
+    changed |= ImGui::Checkbox("Auto hover: perfect inputs only##zh", &s.zombieHoverSimPerfect);
+    ImGui::SameLine(0.0f, 0.0f);
+    Hotkey::DrawText(Hotkeys::Get(Hotkeys::HOTKEY_ZOMBIE_SIM), " (hold ", ")", true);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Hold it and take a lethal hit: ZL+A gets Link up into the hover, then B is\n"
+                          "pressed for you - every 2 frames with this on, otherwise a mix of perfect,\n"
+                          "good, ok and bad gaps that still climbs on average.");
+    if (changed)
+        Config::MarkDirty();
+    ImGui::Unindent();
     return changed;
 }
 
@@ -168,6 +225,11 @@ void RegisterControls()
                                 drawMss, nullptr, nullptr };
     Control::Register(mss);
 
+    Control::Descriptor zombie = { "tools.zombie_hover", "Zombie Hover",
+                                   "Tools / Trainers",
+                                   drawZombieHover, drawZombieHoverOptions, nullptr };
+    Control::Register(zombie);
+
     Control::Descriptor flyCam = { "camera.fly_cam", "Fly Cam",
                                    "Tools / Camera",
                                    drawFlyCam, nullptr, nullptr };
@@ -207,6 +269,9 @@ void DrawTools()
 
     ImGui::SeparatorText("Macros");
     Control::Draw("tools.mss", Control::SURFACE_MENU);
+
+    ImGui::SeparatorText("Trainers");
+    Control::Draw("tools.zombie_hover", Control::SURFACE_MENU);
 
     ImGui::SeparatorText("Camera");
     Control::Draw("camera.fly_cam", Control::SURFACE_MENU);

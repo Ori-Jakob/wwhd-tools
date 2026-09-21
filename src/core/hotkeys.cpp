@@ -62,6 +62,10 @@ static const Entry kEntries[HOTKEY_COUNT] = {
       Input::BTN_ZL | Input::BTN_L | Input::BTN_PLUS,                false, SCOPE_GLOBAL },
     { "Auto-advance text", "Text",    "textAdvanceCombo",
       Input::BTN_B,                                                  true,  SCOPE_GLOBAL },
+    { "Reset hover stats", "Zombie Hover", "zombieResetCombo",
+      Input::BTN_L | Input::BTN_ZL | Input::BTN_B,                   false, SCOPE_GLOBAL },
+    { "Auto hover",       nullptr,    "zombieSimCombo",
+      Input::BTN_R3,                                                 true,  SCOPE_GLOBAL },
 };
 
 static uint32_t s_bindings[HOTKEY_COUNT];

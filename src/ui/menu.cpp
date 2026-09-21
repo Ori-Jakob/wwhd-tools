@@ -3,6 +3,7 @@
 #include "core/settings.h"
 #include "hud/hud_frame_stats.h"
 #include "hud/hud_game_info.h"
+#include "hud/hud_zombie_hover.h"
 #include "render/image.h"
 #include "ui/menu_nav.h"
 #include "ui/panels.h"
@@ -54,6 +55,7 @@ void Draw(ImGuiIO& io)
     drawToolbar(io);
     Hud::GameInfo::DrawSettingsWindow();
     Hud::FrameStats::DrawSettingsWindow();
+    Hud::ZombieHover::DrawHistoryWindow();
     Panels::DrawHotkeysWindow();
     Panels::DrawControlsWindow();
     Panels::DrawInventoryWindow();

@@ -32,6 +32,10 @@ static const Field kSettingsSchema[] = {
     WWHD_SETTING(flyCamSpeed,    FIELD_FLOAT, 5.0f, 500.0f),
     WWHD_SETTING(mssEnabled,     FIELD_BOOL,  0.0f,   0.0f),
 
+    WWHD_SETTING(zombieHoverEnabled, FIELD_BOOL, 0.0f, 0.0f),
+    WWHD_SETTING(zombieHoverHeal, FIELD_BOOL,  0.0f,   0.0f),
+    WWHD_SETTING(zombieHoverSimPerfect, FIELD_BOOL, 0.0f, 0.0f),
+
     WWHD_SETTING(collisionView,  FIELD_BOOL,  0.0f,   0.0f),
     WWHD_SETTING(collisionAt,    FIELD_BOOL,  0.0f,   0.0f),
     WWHD_SETTING(collisionTg,    FIELD_BOOL,  0.0f,   0.0f),
