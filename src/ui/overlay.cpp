@@ -14,6 +14,7 @@
 #include "hud/hud_input_viewer.h"
 #include "hud/hud_zombie_hover.h"
 #include "render/renderer.h"
+#include "tools/coordinates.h"
 #include "tools/flycam.h"
 #include "tools/mss.h"
 #include "tools/save_loader.h"
@@ -82,6 +83,7 @@ void OnApplicationStart()
     Tools::FlyCam::OnApplicationStart();
     Tools::Mss::OnApplicationStart();
     Tools::ZombieHover::OnApplicationStart();
+    Tools::Coordinates::OnApplicationStart();
     Tools::SaveStates::OnApplicationStart();
     Tools::SaveLoader::OnApplicationStart();
     Hud::GameInfo::OnApplicationStart();
@@ -183,6 +185,7 @@ void Tick()
     Tools::SaveStates::Tick(gameTools);
     Tools::SaveLoader::Tick();
     Tools::StageControl::Tick(gameTools);
+    Tools::Coordinates::Tick(gameTools);
     Tools::ZombieHover::Tick(gameTools);
 
     static int s_gameOnTv = -1;

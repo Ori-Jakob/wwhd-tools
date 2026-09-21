@@ -6,6 +6,7 @@
 #include "core/frame_stats.h"
 #include "hud/hud_collision.h"
 #include "render/gbuffer.h"
+#include "tools/coordinates.h"
 #include "tools/flycam.h"
 #include "ui/overlay.h"
 
@@ -756,6 +757,7 @@ RPL_EXPORT uint32_t rpl_cemu_entry(uint32_t reason, void* a, void* b, void* c)
 
     case RPL_CEMU_CAM_RUN:
         Hud::Collision::OnCameraRun(a);
+        Tools::Coordinates::OnCameraRun(a);
         return 1;
 
     case RPL_CEMU_MASS_CHK:

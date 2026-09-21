@@ -14,6 +14,7 @@
 #include "hud/hud_game_info.h"
 #include "hud/hud_input_viewer.h"
 #include "hud/hud_zombie_hover.h"
+#include "tools/coordinates.h"
 #include "ui/menu_nav.h"
 #include "ui/quick_access.h"
 #include "ui/window_state.h"
@@ -378,6 +379,86 @@ static void saveQuickAccess(cJSON* root)
                              cJSON_CreateString(Ui::QuickAccess::ItemId(i)));
 }
 
+static void loadCoordinates(cJSON* root)
+{
+    using namespace Tools::Coordinates;
+    uint32_t selected = (uint32_t)Selected();
+    readU32(root, "coordinatesSelected", &selected);
+    if (selected < (uint32_t)SLOT_COUNT)
+        SetSelected((int)selected);
+
+    cJSON* slots = cJSON_GetObjectItemCaseSensitive(root, "coordinates");
+    if (!cJSON_IsArray(slots))
+        return;
+    int i = 0;
+    cJSON* item = nullptr;
+    cJSON_ArrayForEach(item, slots) {
+        if (i >= SLOT_COUNT)
+            break;
+        Slot s = {};
+        cJSON* stage = cJSON_IsObject(item) ? cJSON_GetObjectItemCaseSensitive(item, "stage") : nullptr;
+        if (cJSON_IsString(stage) && stage->valuestring && stage->valuestring[0]) {
+            s.valid = true;
+            snprintf(s.stage, sizeof(s.stage), "%s", stage->valuestring);
+            cJSON* name = cJSON_GetObjectItemCaseSensitive(item, "name");
+            if (cJSON_IsString(name) && name->valuestring)
+                snprintf(s.name, sizeof(s.name), "%s", name->valuestring);
+            float room = -1.0f, layer = -1.0f, angle = 0.0f;
+            readFloat(item, "room", &room, -1.0f, 63.0f);
+            readFloat(item, "layer", &layer, -1.0f, 127.0f);
+            readFloat(item, "angle", &angle, -32768.0f, 32767.0f);
+            s.room = (s8)(int)room;
+            s.layer = (s8)(int)layer;
+            s.angle = (s16)(int)angle;
+            readFloat(item, "x", &s.pos.x, -1.0e9f, 1.0e9f);
+            readFloat(item, "y", &s.pos.y, -1.0e9f, 1.0e9f);
+            readFloat(item, "z", &s.pos.z, -1.0e9f, 1.0e9f);
+            readBool(item, "camera", &s.hasCamera);
+            readFloat(item, "eyeX", &s.camEye.x, -1.0e9f, 1.0e9f);
+            readFloat(item, "eyeY", &s.camEye.y, -1.0e9f, 1.0e9f);
+            readFloat(item, "eyeZ", &s.camEye.z, -1.0e9f, 1.0e9f);
+            readFloat(item, "centerX", &s.camCenter.x, -1.0e9f, 1.0e9f);
+            readFloat(item, "centerY", &s.camCenter.y, -1.0e9f, 1.0e9f);
+            readFloat(item, "centerZ", &s.camCenter.z, -1.0e9f, 1.0e9f);
+        }
+        Set(i, s);
+        ++i;
+    }
+}
+
+static void saveCoordinates(cJSON* root)
+{
+    using namespace Tools::Coordinates;
+    cJSON_AddNumberToObject(root, "coordinatesSelected", Selected());
+    cJSON* slots = cJSON_AddArrayToObject(root, "coordinates");
+    if (!slots)
+        return;
+    for (int i = 0; i < SLOT_COUNT; ++i) {
+        const Slot& s = At(i);
+        cJSON* o = cJSON_CreateObject();
+        if (!o)
+            return;
+        if (s.valid) {
+            cJSON_AddStringToObject(o, "stage", s.stage);
+            cJSON_AddStringToObject(o, "name", s.name);
+            cJSON_AddNumberToObject(o, "room", s.room);
+            cJSON_AddNumberToObject(o, "layer", s.layer);
+            cJSON_AddNumberToObject(o, "x", (double)s.pos.x);
+            cJSON_AddNumberToObject(o, "y", (double)s.pos.y);
+            cJSON_AddNumberToObject(o, "z", (double)s.pos.z);
+            cJSON_AddNumberToObject(o, "angle", s.angle);
+            cJSON_AddBoolToObject(o, "camera", s.hasCamera);
+            cJSON_AddNumberToObject(o, "eyeX", (double)s.camEye.x);
+            cJSON_AddNumberToObject(o, "eyeY", (double)s.camEye.y);
+            cJSON_AddNumberToObject(o, "eyeZ", (double)s.camEye.z);
+            cJSON_AddNumberToObject(o, "centerX", (double)s.camCenter.x);
+            cJSON_AddNumberToObject(o, "centerY", (double)s.camCenter.y);
+            cJSON_AddNumberToObject(o, "centerZ", (double)s.camCenter.z);
+        }
+        cJSON_AddItemToArray(slots, o);
+    }
+}
+
 static void applyJson(const char* text)
 {
     cJSON* root = cJSON_Parse(text);
@@ -393,6 +474,7 @@ static void applyJson(const char* text)
     loadNavBindings(root);
     loadCheats(root);
     loadQuickAccess(root);
+    loadCoordinates(root);
 
     loadWindow(root, "gameInfo", Hud::GameInfo::State(),
                Hud::GameInfo::MIN_WIDTH, Hud::GameInfo::MAX_WIDTH);
@@ -476,6 +558,7 @@ void Flush()
     saveNavBindings(root);
     saveCheats(root);
     saveQuickAccess(root);
+    saveCoordinates(root);
 
     saveWindow(root, "gameInfo", Hud::GameInfo::State());
     cJSON_AddNumberToObject(root, "gameInfoRows", Hud::GameInfo::GetVisibleRows());

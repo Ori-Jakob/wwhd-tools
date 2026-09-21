@@ -66,6 +66,10 @@ static const Entry kEntries[HOTKEY_COUNT] = {
       Input::BTN_L | Input::BTN_ZL | Input::BTN_B,                   false, SCOPE_GLOBAL },
     { "Auto hover",       nullptr,    "zombieSimCombo",
       Input::BTN_R3,                                                 true,  SCOPE_GLOBAL },
+    { "Save coordinates", "Coordinates", "coordSaveCombo",
+      Input::BTN_ZR | Input::BTN_LEFT,                               false, SCOPE_GLOBAL },
+    { "Load coordinates", nullptr,    "coordLoadCombo",
+      Input::BTN_ZR | Input::BTN_RIGHT,                              false, SCOPE_GLOBAL },
 };
 
 static uint32_t s_bindings[HOTKEY_COUNT];

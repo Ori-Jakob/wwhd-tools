@@ -25,6 +25,9 @@ void DrawSaveStatesWindow();
 void DrawSaveLoaderItem();
 void DrawSaveLoaderWindow();
 
+void DrawCoordinatesItem();
+void DrawCoordinatesWindow();
+
 #ifdef WWHD_TOOLS_DEBUG
 void DrawDiagnostics();
 #endif

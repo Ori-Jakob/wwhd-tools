@@ -285,6 +285,7 @@ void DrawTools()
         Tools::StageControl::ReloadStage();
     ImGui::SameLine(0.0f, 0.0f);
     Hotkey::DrawText(Hotkeys::Get(Hotkeys::HOTKEY_STAGE_RELOAD), "  ", nullptr, true);
+    DrawCoordinatesItem();
 
     ImGui::SeparatorText("HUD");
     Control::Draw("hud.game_info", Control::SURFACE_MENU);

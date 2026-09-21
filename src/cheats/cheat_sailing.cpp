@@ -4,6 +4,7 @@
 #include "core/hotkeys.h"
 #include "core/logger.h"
 #include "libwwhd/libwwhd.h"
+#include "tools/coordinates.h"
 #include "ui/notifications.h"
 #include "ui/ui_field.h"
 #include "ui/ui_hotkey.h"
@@ -113,10 +114,10 @@ void TeleportLinkToBoat()
         return;
     }
     pos.y += kBoatDropHeight;
-    daPy_setPosition(&pos);
-    Notifications::Show(Notifications::Success, "Boat", "Teleported to the boat");
-    Logger::Log("[sailing] Link teleported to boat at (%.1f %.1f %.1f)",
-                (double)pos.x, (double)pos.y, (double)pos.z);
+    const s8 room = fopAcM_getRoomNo(&ship->base);
+    Logger::Log("[sailing] teleport to boat at (%.1f %.1f %.1f) room %d (Link in %d)",
+                (double)pos.x, (double)pos.y, (double)pos.z, (int)room, (int)daPy_getRoomNo());
+    Tools::Coordinates::GoToInStage(room, pos, false, 0, "the boat");
 }
 
 void Tick(bool acceptInput)

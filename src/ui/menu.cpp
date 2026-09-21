@@ -61,6 +61,7 @@ void Draw(ImGuiIO& io)
     Panels::DrawInventoryWindow();
     Panels::DrawSaveStatesWindow();
     Panels::DrawSaveLoaderWindow();
+    Panels::DrawCoordinatesWindow();
     QuickAccess::DrawFullWindow();
     Panels::DrawResetConfirm();
 }
