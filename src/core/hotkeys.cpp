@@ -73,6 +73,7 @@ static const Entry kEntries[HOTKEY_COUNT] = {
 };
 
 static uint32_t s_bindings[HOTKEY_COUNT];
+static bool     s_inclusive[HOTKEY_COUNT];
 static uint32_t s_suppressed = 0;
 
 static bool valid(Id id) { return id >= 0 && id < HOTKEY_COUNT; }
@@ -89,6 +90,40 @@ void Set(Id id, uint32_t buttons)
 {
     if (valid(id))
         s_bindings[id] = buttons;
+}
+
+// Defaults match how each hotkey behaved before this was a setting.
+bool DefaultInclusive(Id id)
+{
+    if (!valid(id))
+        return false;
+    if (kEntries[id].hold)
+        return true;
+    switch (id) {
+    case HOTKEY_FLY_CAM:
+    case HOTKEY_SWIM_FULL_SPEED:
+    case HOTKEY_SWIM_STOP:
+    case HOTKEY_LAUNCH_STOP:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool IsInclusive(Id id) { return valid(id) && s_inclusive[id]; }
+
+void SetInclusive(Id id, bool inclusive)
+{
+    if (valid(id))
+        s_inclusive[id] = inclusive;
+}
+
+bool Matches(Id id, uint32_t held)
+{
+    const uint32_t combo = Get(id);
+    if (!combo)
+        return false;
+    return s_inclusive[id] ? (held & combo) == combo : held == combo;
 }
 
 bool Conflicts(Id target, uint32_t buttons, Id other)
@@ -122,8 +157,7 @@ bool OverlayComboHeld(uint32_t held)
 {
     static const Id kOverlay[] = { HOTKEY_MENU, HOTKEY_QUICK_ACCESS };
     for (unsigned i = 0; i < sizeof(kOverlay) / sizeof(kOverlay[0]); ++i) {
-        const uint32_t combo = Get(kOverlay[i]);
-        if (combo && (held & combo) == combo)
+        if (Matches(kOverlay[i], held))
             return true;
     }
     return false;
@@ -136,17 +170,7 @@ bool Pressed(Id id)
         return false;
 
     const Input::Snapshot& in = Input::Current();
-    return in.held == combo && (in.pressed & combo) != 0;
-}
-
-bool PressedIgnoringExtras(Id id)
-{
-    const uint32_t combo = Get(id);
-    if (!combo || IsHold(id) || (combo & s_suppressed))
-        return false;
-
-    const Input::Snapshot& in = Input::Current();
-    return (in.held & combo) == combo && (in.pressed & combo) != 0;
+    return Matches(id, in.held) && (in.pressed & combo) != 0;
 }
 
 bool Held(Id id)
@@ -154,7 +178,7 @@ bool Held(Id id)
     const uint32_t combo = Get(id);
     if (!combo || (combo & s_suppressed))
         return false;
-    return (Input::Current().held & combo) == combo;
+    return Matches(id, Input::Current().held);
 }
 
 void Tick()
@@ -164,8 +188,10 @@ void Tick()
 
 void ResetToDefaults()
 {
-    for (int i = 0; i < HOTKEY_COUNT; ++i)
+    for (int i = 0; i < HOTKEY_COUNT; ++i) {
         s_bindings[i] = kEntries[i].fallback;
+        s_inclusive[i] = DefaultInclusive((Id)i);
+    }
 }
 
 void OnApplicationStart()

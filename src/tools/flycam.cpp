@@ -390,7 +390,7 @@ void Tick(bool acceptInput)
             WuPatch::Data::SetEnabled(s.swap, false);
             s.swapOn = false;
         }
-        if (enabled && acceptInput && Hotkeys::PressedIgnoringExtras(Hotkeys::HOTKEY_FLY_CAM))
+        if (enabled && acceptInput && Hotkeys::Pressed(Hotkeys::HOTKEY_FLY_CAM))
             activate();
         return;
     case PHASE_ARMING:
@@ -419,7 +419,7 @@ void Tick(bool acceptInput)
 
     if (!acceptInput)
         return;
-    if (Hotkeys::PressedIgnoringExtras(Hotkeys::HOTKEY_FLY_CAM))
+    if (Hotkeys::Pressed(Hotkeys::HOTKEY_FLY_CAM))
         return deactivate("hotkey", true);
 
     const Input::Snapshot& in = Input::Current();

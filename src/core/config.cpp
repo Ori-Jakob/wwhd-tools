@@ -152,6 +152,11 @@ static void loadHotkeys(cJSON* root)
         uint32_t combo = Hotkeys::Get(id);
         readU32(root, Hotkeys::ConfigKey(id), &combo);
         Hotkeys::Set(id, combo);
+        char key[64];
+        keyFor(key, sizeof(key), Hotkeys::ConfigKey(id), "Inclusive");
+        bool inclusive = Hotkeys::IsInclusive(id);
+        readBool(root, key, &inclusive);
+        Hotkeys::SetInclusive(id, inclusive);
     }
 }
 
@@ -160,6 +165,9 @@ static void saveHotkeys(cJSON* root)
     for (int i = 0; i < Hotkeys::HOTKEY_COUNT; ++i) {
         const Hotkeys::Id id = (Hotkeys::Id)i;
         cJSON_AddNumberToObject(root, Hotkeys::ConfigKey(id), (double)Hotkeys::Get(id));
+        char key[64];
+        keyFor(key, sizeof(key), Hotkeys::ConfigKey(id), "Inclusive");
+        cJSON_AddBoolToObject(root, key, Hotkeys::IsInclusive(id));
     }
 }
 

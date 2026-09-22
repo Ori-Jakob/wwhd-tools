@@ -28,7 +28,7 @@ bool NextStick(uint32_t held, float* x, float* y)
         return false;
 
     const uint32_t combo = Hotkeys::Get(Hotkeys::HOTKEY_MSS);
-    const bool comboHeld = combo != 0 && (held & combo) == combo;
+    const bool comboHeld = Hotkeys::Matches(Hotkeys::HOTKEY_MSS, held);
     const bool enabled = IsEnabled();
     const bool flyCam = FlyCam::IsActive();
     const int32_t proc = comboHeld ? daPy_getCurProc() : (int32_t)-1;

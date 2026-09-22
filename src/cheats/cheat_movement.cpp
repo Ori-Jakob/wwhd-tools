@@ -155,9 +155,9 @@ void OnSwimProc(void* self)
     daPy_lk_c* link = (daPy_lk_c*)self;
     f32* speed = (f32*)((u8*)self + WWHD_DAPY_OFF_NORMAL_SPEED);
 
-    if (Hotkeys::PressedIgnoringExtras(Hotkeys::HOTKEY_SWIM_FULL_SPEED))
+    if (Hotkeys::Pressed(Hotkeys::HOTKEY_SWIM_FULL_SPEED))
         *speed = link->mMaxNormalSpeed;
-    else if (Hotkeys::PressedIgnoringExtras(Hotkeys::HOTKEY_SWIM_STOP))
+    else if (Hotkeys::Pressed(Hotkeys::HOTKEY_SWIM_STOP))
         *speed = 0.0f;
 }
 
@@ -223,7 +223,7 @@ static void tickLaunch(bool allowed)
 {
     const bool active = allowed && s_launch;
     const bool wasHeld = s_launchHeld;
-    s_launchStop = active && Hotkeys::PressedIgnoringExtras(Hotkeys::HOTKEY_LAUNCH_STOP);
+    s_launchStop = active && Hotkeys::Pressed(Hotkeys::HOTKEY_LAUNCH_STOP);
     s_launchHeld = active && !s_launchStop && Hotkeys::Held(Hotkeys::HOTKEY_LAUNCH);
     if (!s_launchHeld) {
         s_launchSpeed = 0.0f;

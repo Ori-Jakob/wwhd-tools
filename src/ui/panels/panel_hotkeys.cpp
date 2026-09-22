@@ -40,10 +40,11 @@ void DrawHotkeysWindow()
         const ImGuiTableFlags flags = ImGuiTableFlags_Borders |
                                       ImGuiTableFlags_RowBg |
                                       ImGuiTableFlags_SizingStretchProp;
-        if (ImGui::BeginTable("##hotkeys", 3, flags)) {
-            ImGui::TableSetupColumn("Feature", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("Hotkey",  ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("",        ImGuiTableColumnFlags_WidthFixed);
+        if (ImGui::BeginTable("##hotkeys", 4, flags)) {
+            ImGui::TableSetupColumn("Feature",   ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Hotkey",    ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Inclusive", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("",          ImGuiTableColumnFlags_WidthFixed);
             ImGui::TableHeadersRow();
 
             for (int i = 0; i < Hotkeys::HOTKEY_COUNT; ++i) {
@@ -69,6 +70,18 @@ void DrawHotkeysWindow()
 
                 ImGui::TableNextColumn();
                 ImGui::PushID(i);
+                bool inclusive = Hotkeys::IsInclusive(id);
+                if (ImGui::Checkbox("##inclusive", &inclusive)) {
+                    Hotkeys::SetInclusive(id, inclusive);
+                    Config::MarkDirty();
+                }
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip(inclusive
+                        ? "Inclusive: works while these buttons are held, even with others down."
+                        : "Exclusive: works only when exactly these buttons are held.\n"
+                          "Analog sticks never count.");
+
+                ImGui::TableNextColumn();
                 RebindUi::DrawRebindButton(Rebind::DOMAIN_HOTKEYS, i);
                 ImGui::PopID();
             }
@@ -85,7 +98,8 @@ void DrawHotkeysWindow()
             Config::MarkDirty();
         }
         ImGui::EndDisabled();
-        ImGui::TextDisabled("Hold hotkeys are modifiers and may share a button.");
+        ImGui::TextDisabled("Hold hotkeys are modifiers and may share a button.\n"
+                            "Inclusive hotkeys ignore extra buttons; exclusive ones need exactly theirs.");
 
         RebindUi::DrawConflictPopup(Rebind::DOMAIN_HOTKEYS, "Hotkey conflict");
     }

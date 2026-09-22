@@ -410,8 +410,7 @@ bool NextButtons(uint32_t held, uint32_t* vpadMask)
         return false;
     *vpadMask = 0;
 
-    const uint32_t combo = Hotkeys::Get(Hotkeys::HOTKEY_ZOMBIE_SIM);
-    const bool comboHeld = combo != 0 && (held & combo) == combo;
+    const bool comboHeld = Hotkeys::Matches(Hotkeys::HOTKEY_ZOMBIE_SIM, held);
     bool run = comboHeld && IsEnabled() && !FlyCam::IsActive() && wwhd_regionResolved;
     s32 proc = -1;
     if (run) {

@@ -116,13 +116,15 @@ static void detectOverlayHotkeys(uint32_t held)
 {
     if (Rebind::IsActive())
         return;
-    const uint32_t menu = Hotkeys::Get(Hotkeys::HOTKEY_MENU);
-    const uint32_t quick = Hotkeys::Get(Hotkeys::HOTKEY_QUICK_ACCESS);
+    const bool menuNow = Hotkeys::Matches(Hotkeys::HOTKEY_MENU, held);
+    const bool menuBefore = Hotkeys::Matches(Hotkeys::HOTKEY_MENU, s_prevHeld);
+    const bool quickNow = Hotkeys::Matches(Hotkeys::HOTKEY_QUICK_ACCESS, held);
+    const bool quickBefore = Hotkeys::Matches(Hotkeys::HOTKEY_QUICK_ACCESS, s_prevHeld);
 
-    if (menu != 0 && held == menu && s_prevHeld != menu) {
+    if (menuNow && !menuBefore) {
         s_togglePending = true;
         s_drainHeld = true;
-    } else if (quick != 0 && held == quick && s_prevHeld != quick) {
+    } else if (quickNow && !quickBefore) {
         s_quickAccessPending = true;
         s_drainHeld = true;
     }

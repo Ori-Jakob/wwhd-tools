@@ -50,13 +50,18 @@ const char* ConfigKey(Id id);
 bool        IsHold(Id id);
 Scope       ScopeOf(Id id);
 
+// Inclusive ignores extra buttons, exclusive needs the exact set. Sticks never count.
+bool        IsInclusive(Id id);
+void        SetInclusive(Id id, bool inclusive);
+bool        DefaultInclusive(Id id);
+bool        Matches(Id id, uint32_t held);
+
 bool        Conflicts(Id target, uint32_t buttons, Id other);
 const char* Validate(Id target, uint32_t buttons);
 
 bool OverlayComboHeld(uint32_t held);
 
 bool Pressed(Id id);
-bool PressedIgnoringExtras(Id id);
 bool Held(Id id);
 
 void SuppressUntilReleased(uint32_t buttons);
