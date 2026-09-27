@@ -59,6 +59,11 @@ void FeedMenu(ImGuiIO& io, float displayWidth, float displayHeight,
 
 const Snapshot& Current();
 
+// Buttons claimed this frame are withheld from menu navigation until released.
+void ClaimMenuButtons(uint32_t buttons);
+void ClaimMenuSticks();
+bool MenuSticksClaimed();
+
 bool GetTouchPoint(float* outX, float* outY);
 
 bool PeekLive(uint32_t* held, float* touchX, float* touchY);

@@ -4,6 +4,7 @@
 #include "core/hotkeys.h"
 #include "core/logger.h"
 #include "tools/save_states.h"
+#include "tools/sea_chart.h"
 #include "ui/notifications.h"
 
 #include <math.h>
@@ -267,6 +268,8 @@ static bool begin(const Target& t)
         return fail("Still moving to the last place.");
     if (SaveStates::IsBusy())
         return fail("Wait for the save state to finish.");
+    if (SeaChart::IsBusy())
+        return fail("Wait for the sea chart move to finish.");
     if (dComIfGp_isNextStagePending())
         return fail("A stage change is already queued.");
     if (fopScn_getName(fopScnM_getStageScene()) != WWHD_SCENE_PLAY)

@@ -28,6 +28,9 @@ void DrawSaveLoaderWindow();
 void DrawCoordinatesItem();
 void DrawCoordinatesWindow();
 
+void DrawSeaChartItem();
+void DrawSeaChartWindow();
+
 #ifdef WWHD_TOOLS_DEBUG
 void DrawDiagnostics();
 #endif

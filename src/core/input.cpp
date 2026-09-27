@@ -37,6 +37,11 @@ static bool     s_haveTouch = false;
 static bool     s_wasTouched = false;
 static bool     s_stickPushed = false;
 static bool     s_buttonsPushed = false;
+static uint32_t s_claimPending = 0;
+static uint32_t s_claimActive = 0;
+static uint32_t s_claimSticky = 0;
+static bool     s_sticksPending = false;
+static bool     s_sticksActive = false;
 
 static const float kStickDeadzone = 0.06f;
 
@@ -348,10 +353,20 @@ static bool calibratedTouch(VPADTouchData* out)
     return out->touched != 0;
 }
 
+void ClaimMenuButtons(uint32_t buttons) { s_claimPending |= buttons; }
+void ClaimMenuSticks()                  { s_sticksPending = true; }
+bool MenuSticksClaimed()                { return s_sticksActive || s_sticksPending; }
+
 void FeedMenu(ImGuiIO& io, float displayWidth, float displayHeight,
               bool menuActive, uint32_t flags)
 {
-    uint32_t held = s_snapshot.held;
+    s_claimActive = s_claimPending;
+    s_claimPending = 0;
+    s_sticksActive = s_sticksPending;
+    s_sticksPending = false;
+    s_claimSticky = (s_claimSticky | s_claimActive) & s_snapshot.held;
+
+    uint32_t held = s_snapshot.held & ~(s_claimActive | s_claimSticky);
     if (!menuActive || s_drainHeld || (flags & FEED_NO_BUTTONS))
         held = 0;
     if (flags & FEED_NO_HORIZONTAL)

@@ -62,6 +62,7 @@ void Draw(ImGuiIO& io)
     Panels::DrawSaveStatesWindow();
     Panels::DrawSaveLoaderWindow();
     Panels::DrawCoordinatesWindow();
+    Panels::DrawSeaChartWindow();
     QuickAccess::DrawFullWindow();
     Panels::DrawResetConfirm();
 }

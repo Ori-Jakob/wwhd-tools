@@ -672,7 +672,7 @@ static void adjustFocusedWindow(ImGuiIO& io, const Input::Snapshot& snap)
 
 static void scrollFocusedWindow(ImGuiIO& io, const Input::Snapshot& snap)
 {
-    if (isHeld(ADJUST_MODIFIER, snap))
+    if (isHeld(ADJUST_MODIFIER, snap) || Input::MenuSticksClaimed())
         return;
 
     const float magnitude = snap.ry < 0.0f ? -snap.ry : snap.ry;
