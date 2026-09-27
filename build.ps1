@@ -34,10 +34,16 @@
 .PARAMETER Clean
     Run "make clean" in both projects before building.
 
+.PARAMETER DebugBuild
+    Build wwhd_tools.rpl with "make DEBUG=1" (-O0, WWHD_TOOLS_DEBUG, the
+    Diagnostics menu and the debug-only tools). The loader plugin is unchanged.
+    The zip and the staging folder get a "-debug" suffix. Alias: -d.
+
 .EXAMPLE
     .\build.ps1
     .\build.ps1 -Version 1.2.0
     .\build.ps1 -NoBuild
+    .\build.ps1 -d
 #>
 [CmdletBinding()]
 param(
@@ -45,7 +51,9 @@ param(
     [string]$DevkitPro,
     [string]$OutDir,
     [switch]$NoBuild,
-    [switch]$Clean
+    [switch]$Clean,
+    [Alias('d')]
+    [switch]$DebugBuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -83,7 +91,11 @@ if (-not $Version) {
     $sha = Invoke-Native 'git' @('-C', $RepoRoot, 'rev-parse', '--short', 'HEAD')
     if ($LASTEXITCODE -eq 0 -and $sha.Trim()) { $Version = $sha.Trim() }
 }
-Write-Host "==> version $Version"
+Write-Host "==> version $Version$(if ($DebugBuild) { ' (debug build)' })"
+
+# Keeps a debug zip from being mistaken for a release one; the version string
+# inside the rpl gets its own -debug suffix from the Makefile.
+$Flavour = if ($DebugBuild) { '-debug' } else { '' }
 
 # -------------------------------------------------------------- toolchain --
 if (-not $DevkitPro) {
@@ -167,8 +179,10 @@ if (-not $NoBuild) {
     Write-Host '==> building rpl_loader.wps'
     Invoke-Make $LoaderDir $makeVars
 
-    Write-Host '==> building wwhd_tools.rpl'
-    Invoke-Make $RepoRoot ($makeVars + @("VERSION=$Version"))
+    Write-Host "==> building wwhd_tools.rpl$(if ($DebugBuild) { ' (DEBUG=1)' })"
+    $toolVars = $makeVars + @("VERSION=$Version")
+    if ($DebugBuild) { $toolVars += 'DEBUG=1' }
+    Invoke-Make $RepoRoot $toolVars
 }
 
 foreach ($f in @($ToolRpl, $LoaderWps, (Join-Path $PackDir 'rules.txt'), (Join-Path $PackDir 'patch_wwhd_tools.asm'))) {
@@ -176,7 +190,7 @@ foreach ($f in @($ToolRpl, $LoaderWps, (Join-Path $PackDir 'rules.txt'), (Join-P
 }
 
 # ------------------------------------------------------------------ stage --
-$Stage = Join-Path $OutDir 'WWHD-Tools'
+$Stage = Join-Path $OutDir "WWHD-Tools$Flavour"
 if (Test-Path $Stage) { Remove-Item -Recurse -Force $Stage }
 
 $cemuPack    = Join-Path $Stage 'Cemu\WWHD-Tools'
@@ -197,7 +211,7 @@ Copy-Item $ToolRpl   $wiiuRpls
 # Written with ZipArchive rather than Compress-Archive: PowerShell 5.1 emits
 # backslash separators in entry names, which unzip on Linux and macOS turns
 # into literal file names.
-$ZipPath = Join-Path $OutDir "WWHD-Tools-$Version.zip"
+$ZipPath = Join-Path $OutDir "WWHD-Tools-$Version$Flavour.zip"
 if (Test-Path $ZipPath) { Remove-Item -Force $ZipPath }
 
 Add-Type -AssemblyName System.IO.Compression
