@@ -39,6 +39,9 @@
     Diagnostics menu and the debug-only tools). The loader plugin is unchanged.
     The zip and the staging folder get a "-debug" suffix. Alias: -d.
 
+.PARAMETER Jobs
+    Parallel make jobs (make -jN). Defaults to 4.
+
 .EXAMPLE
     .\build.ps1
     .\build.ps1 -Version 1.2.0
@@ -53,7 +56,9 @@ param(
     [switch]$NoBuild,
     [switch]$Clean,
     [Alias('d')]
-    [switch]$DebugBuild
+    [switch]$DebugBuild,
+    [ValidateRange(1, 64)]
+    [int]$Jobs = 4
 )
 
 $ErrorActionPreference = 'Stop'
@@ -165,7 +170,7 @@ if (-not $NoBuild) {
     function Invoke-Make([string]$dir, [string[]]$makeArgs) {
         Push-Location $dir
         try {
-            & $Make @makeArgs
+            & $Make "-j$Jobs" @makeArgs
             if ($LASTEXITCODE -ne 0) { throw "make failed in $dir (exit $LASTEXITCODE)" }
         } finally { Pop-Location }
     }

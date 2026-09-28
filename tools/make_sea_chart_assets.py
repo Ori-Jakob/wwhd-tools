@@ -1,6 +1,6 @@
 """Builds data/sea_chart.bin and the sea chart icons. Needs Pillow and NumPy.
 
-Usage: python tools/make_sea_chart_assets.py [chart.png] [link_icon.png] [boat_icon.png]
+Usage: python tools/make_sea_chart_assets.py [--even] [chart.png] [link_icon.png] [boat_icon.png]
 """
 import os
 import struct
@@ -19,34 +19,40 @@ OVERVIEW = 448
 ICON = 96
 
 
-def find_lines(profile, count, first_guess, step_guess):
-    lines = []
-    for k in range(count):
-        expect = first_guess + k * step_guess
-        lo = max(0, int(expect - 30))
-        hi = min(len(profile), int(expect + 30))
-        window = profile[lo:hi]
-        lines.append(lo + int(np.argmin(window)))
-    return lines
+def dip(profile, lo, hi, dark):
+    lo = max(0, int(round(lo)))
+    hi = min(len(profile), int(round(hi)) + 1)
+    i = lo + int(np.argmin(profile[lo:hi]))
+    if lo < i < hi - 1 and profile[i] < dark:
+        return i + 0.5
+    return None
 
 
-def grid_lines(rgb):
-    lum = rgb.astype(np.float64).sum(axis=2)
-    cols = lum.mean(axis=0)
-    rows = lum.mean(axis=1)
-    size = rgb.shape[1]
-    step = size / (GRID + 0.2)
-    first = (size - step * GRID) / 2.0
-    xs = find_lines(cols, GRID + 1, first, step)
-    ys = find_lines(rows, GRID + 1, first, step)
-    return xs, ys
+def axis_lines(profile, even):
+    size = len(profile)
+    dark = 0.85 * np.median(profile)
+    reach = size / GRID / 2
+    first = dip(profile, 0, reach, dark)
+    last = dip(profile, size - 1 - reach, size - 1, dark)
+    first = 0.0 if first is None else first
+    last = float(size) if last is None else last
+    step = (last - first) / GRID
+    lines = [first + k * step for k in range(GRID + 1)]
+    if even:
+        return lines, "even"
+    inner = [dip(profile, x - step / 4, x + step / 4, dark) for x in lines[1:-1]]
+    if None in inner:
+        return lines, "even, no grid lines found"
+    return [first] + inner + [last], "grid lines"
 
 
-def build_chart(path):
+def build_chart(path, even):
     src = Image.open(path).convert("RGB")
-    xs, ys = grid_lines(np.asarray(src))
-    print("grid columns", xs)
-    print("grid rows   ", ys)
+    lum = np.asarray(src, dtype=np.float64).sum(axis=2)
+    xs, how_x = axis_lines(lum.mean(axis=0), even)
+    ys, how_y = axis_lines(lum.mean(axis=1), even)
+    print("columns (%s)" % how_x, [round(x, 1) for x in xs])
+    print("rows    (%s)" % how_y, [round(y, 1) for y in ys])
     side = TILE * GRID
     out = Image.new("RGB", (side, side))
     for r in range(GRID):
@@ -138,10 +144,12 @@ def build_icon(path, out_path):
 
 
 def main():
-    chart = sys.argv[1] if len(sys.argv) > 1 else os.path.join(PICTURES, "great_sea_chart.png")
-    link = sys.argv[2] if len(sys.argv) > 2 else os.path.join(PICTURES, "link_icon.png")
-    boat = sys.argv[3] if len(sys.argv) > 3 else os.path.join(PICTURES, "boat_icon.png")
-    write_chart(build_chart(chart), os.path.join(DATA, "sea_chart.bin"))
+    args = [a for a in sys.argv[1:] if a != "--even"]
+    even = len(args) < len(sys.argv) - 1
+    chart = args[0] if len(args) > 0 else os.path.join(HERE, "sea_chart.png")
+    link = args[1] if len(args) > 1 else os.path.join(PICTURES, "link_icon.png")
+    boat = args[2] if len(args) > 2 else os.path.join(PICTURES, "boat_icon.png")
+    write_chart(build_chart(chart, even), os.path.join(DATA, "sea_chart.bin"))
     build_icon(link, os.path.join(DATA, "sea_link_icon.bin"))
     build_icon(boat, os.path.join(DATA, "sea_boat_icon.bin"))
 

@@ -6,3 +6,4 @@ build_*/
 *.map
 *.lst
 dist/
+tools/sea
