@@ -28,8 +28,8 @@ void DrawSaveLoaderWindow();
 void DrawCoordinatesItem();
 void DrawCoordinatesWindow();
 
-void DrawSeaChartItem();
-void DrawSeaChartWindow();
+void DrawGreatSeaMapItem();
+void DrawGreatSeaMapWindow();
 
 #ifdef WWHD_TOOLS_DEBUG
 void DrawDiagnostics();

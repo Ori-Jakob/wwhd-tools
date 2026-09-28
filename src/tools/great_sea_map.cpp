@@ -1,4 +1,4 @@
-#include "tools/sea_chart.h"
+#include "tools/great_sea_map.h"
 
 #include "core/input.h"
 #include "core/logger.h"
@@ -11,8 +11,8 @@
 #include <string.h>
 
 namespace Tools {
-namespace SeaChart {
-static const char kNotifyKey[] = "sea_chart";
+namespace GreatSeaMap {
+static const char kNotifyKey[] = "great_sea_map";
 
 static const float kSeaLevel     = 0.0f;
 // Link is held this high while a square loads so his ground check finds its surface.
@@ -180,7 +180,7 @@ const char* Blocker(Action action)
 
 static void notify(Notifications::Kind kind, const char* fmt, const char* what)
 {
-    Notifications::ShowKeyedTitledf(kNotifyKey, kind, "Sea Chart", fmt, what);
+    Notifications::ShowKeyedTitledf(kNotifyKey, kind, "Great Sea Map", fmt, what);
 }
 
 static void cameraBehind(const cXyz& pos, s16 angle, float back, float up)
@@ -219,14 +219,14 @@ static bool roomReady(int room)
 static void settleStayRoom(int room)
 {
     if (room >= 1 && dStage_getStayNo() != room && dStage_isRoomLoaded(room)) {
-        Logger::Log("[seachart] stay room %d -> %d", (int)dStage_getStayNo(), room);
+        Logger::Log("[seamap] stay room %d -> %d", (int)dStage_getStayNo(), room);
         dStage_zoneCountCheck(room);
     }
 }
 
 static void logJob(const char* tag)
 {
-    Logger::Log("[seachart] %s: kind=%d room=%d frames=%d ready=%d flags=%02X busy=%d "
+    Logger::Log("[seamap] %s: kind=%d room=%d frames=%d ready=%d flags=%02X busy=%d "
                 "stay=%d linkRoom=%d ground=%.1f riding=%d",
                 tag, (int)s_job.kind, (int)s_job.room, s_job.frames, s_job.readyFrames,
                 (unsigned)dStage_getRoomFlags(s_job.room), dStage_isRoomStreamingBusy(),
@@ -236,16 +236,16 @@ static void logJob(const char* tag)
 
 static void finish(const char* how)
 {
-    Logger::Log("[seachart] %s %s after %d frames", how, s_job.label, s_job.frames);
+    Logger::Log("[seamap] %s %s after %d frames", how, s_job.label, s_job.frames);
     Notifications::Dismiss(kNotifyKey);
-    Notifications::ShowKeyedTitledf(kNotifyKey, Notifications::Success, "Sea Chart", "%s %s",
+    Notifications::ShowKeyedTitledf(kNotifyKey, Notifications::Success, "Great Sea Map", "%s %s",
                                     how, s_job.label);
     s_job.kind = JOB_NONE;
 }
 
 static void abortJob(const char* why)
 {
-    Logger::LogWarn("[seachart] %s aborted: %s", s_job.label, why);
+    Logger::LogWarn("[seamap] %s aborted: %s", s_job.label, why);
     Notifications::Dismiss(kNotifyKey);
     notify(Notifications::Error, "%s", why);
     s_job.kind = JOB_NONE;
@@ -261,7 +261,7 @@ static void startJob(JobKind kind, float x, float z, s16 angle, const char* labe
     s_job.angle = angle;
     snprintf(s_job.label, sizeof(s_job.label), "%s", label);
     if (!roomReady(s_job.room))
-        Notifications::ShowStickyf(kNotifyKey, Notifications::Info, "Sea Chart",
+        Notifications::ShowStickyf(kNotifyKey, Notifications::Info, "Great Sea Map",
                                    "Loading %s ...", s_job.label);
     logJob("start");
 }
@@ -277,7 +277,7 @@ static bool moveBoat(float x, float z, s16 angle)
     cXyz pos = { x, y, z };
     daShip_setPosition(ship, &pos);
     daShip_setFacing(ship, angle);
-    Logger::Log("[seachart] boat moved to (%.1f %.1f %.1f) facing %d", (double)x, (double)y,
+    Logger::Log("[seamap] boat moved to (%.1f %.1f %.1f) facing %d", (double)x, (double)y,
                 (double)z, (int)(u16)angle);
     return true;
 }
@@ -350,7 +350,7 @@ bool Run(Action action)
         cXyz boat = { bx, pos->y, bz };
         daShip_setPosition(ship, &boat);
         daShip_setFacing(ship, (s16)(shape->y + 0x4000));
-        Logger::Log("[seachart] boat brought to Link at (%.1f %.1f %.1f)", (double)bx,
+        Logger::Log("[seamap] boat brought to Link at (%.1f %.1f %.1f)", (double)bx,
                     (double)pos->y, (double)bz);
         notify(Notifications::Success, "%s", "Boat brought to Link");
         return true;
@@ -383,7 +383,7 @@ static void tickLinkPoint(bool ready)
 
     const bool land = valid && ground > kSeaLevel - 5.0f;
     const cXyz dest = { s_job.x, land ? ground : kSeaLevel, s_job.z };
-    Logger::Log("[seachart] placing Link: ground %s %.1f in room %d (target %d) -> %s y=%.1f",
+    Logger::Log("[seamap] placing Link: ground %s %.1f in room %d (target %d) -> %s y=%.1f",
                 valid ? "at" : "none,", (double)ground, (int)daPy_getRoomNo(), (int)s_job.room,
                 land ? "land" : "water", (double)dest.y);
     if (gaveUp)

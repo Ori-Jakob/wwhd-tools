@@ -2,7 +2,7 @@
 
 #include "core/input.h"
 #include "render/image.h"
-#include "tools/sea_chart.h"
+#include "tools/great_sea_map.h"
 #include "ui/ui_window.h"
 
 #include "imgui.h"
@@ -17,11 +17,11 @@
 
 namespace Ui {
 namespace Panels {
-namespace Sea = Tools::SeaChart;
+namespace Sea = Tools::GreatSeaMap;
 
 static bool s_open = false;
 static bool s_wasOpen = false;
-static const char kWindowName[] = "Sea Chart";
+static const char kWindowName[] = "Great Sea Map";
 
 static const float kMapSide   = 440.0f;
 static const float kMargin    = 16.0f;
@@ -177,9 +177,9 @@ static void actionButton(const char* label, Sea::Action action)
         ImGui::SetTooltip("%s", why);
 }
 
-void DrawSeaChartItem()
+void DrawGreatSeaMapItem()
 {
-    Window::Checkbox("Sea Chart", &s_open, kWindowName);
+    Window::Checkbox("Great Sea Map", &s_open, kWindowName);
 }
 
 struct Mapper {
@@ -214,7 +214,7 @@ static void drawActors(ImDrawList* dl, const Mapper& m, float iconRadius)
         drawIcon(dl, linkTex, at, iconRadius, facing, IM_COL32(96, 196, 88, 255));
 }
 
-void DrawSeaChartWindow()
+void DrawGreatSeaMapWindow()
 {
     if (!s_open) {
         s_wasOpen = false;

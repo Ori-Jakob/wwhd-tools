@@ -286,7 +286,7 @@ void DrawTools()
     ImGui::SameLine(0.0f, 0.0f);
     Hotkey::DrawText(Hotkeys::Get(Hotkeys::HOTKEY_STAGE_RELOAD), "  ", nullptr, true);
     DrawCoordinatesItem();
-    DrawSeaChartItem();
+    DrawGreatSeaMapItem();
 
     ImGui::SeparatorText("HUD");
     Control::Draw("hud.game_info", Control::SURFACE_MENU);

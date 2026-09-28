@@ -5,7 +5,7 @@
 #include "core/logger.h"
 #include "libwwhd/libwwhd.h"
 #include "tools/coordinates.h"
-#include "tools/sea_chart.h"
+#include "tools/great_sea_map.h"
 #include "ui/notifications.h"
 #include "ui/ui_field.h"
 #include "ui/ui_hotkey.h"
@@ -101,8 +101,8 @@ void SetBoostMultiplier(int multiplier)
 void TeleportLinkToBoat()
 {
     // The boat's room goes stale over an unloaded square, so use its position.
-    if (Tools::SeaChart::OnGreatSea()) {
-        Tools::SeaChart::Run(Tools::SeaChart::ACTION_LINK_TO_BOAT);
+    if (Tools::GreatSeaMap::OnGreatSea()) {
+        Tools::GreatSeaMap::Run(Tools::GreatSeaMap::ACTION_LINK_TO_BOAT);
         return;
     }
     daShip_c* ship = get_daShip();

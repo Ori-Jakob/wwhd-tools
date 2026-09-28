@@ -19,7 +19,7 @@
 #include "tools/mss.h"
 #include "tools/save_loader.h"
 #include "tools/save_states.h"
-#include "tools/sea_chart.h"
+#include "tools/great_sea_map.h"
 #include "tools/stage_control.h"
 #include "tools/zombie_hover.h"
 #include "ui/init_toast.h"
@@ -85,7 +85,7 @@ void OnApplicationStart()
     Tools::Mss::OnApplicationStart();
     Tools::ZombieHover::OnApplicationStart();
     Tools::Coordinates::OnApplicationStart();
-    Tools::SeaChart::OnApplicationStart();
+    Tools::GreatSeaMap::OnApplicationStart();
     Tools::SaveStates::OnApplicationStart();
     Tools::SaveLoader::OnApplicationStart();
     Hud::GameInfo::OnApplicationStart();
@@ -188,7 +188,7 @@ void Tick()
     Tools::SaveLoader::Tick();
     Tools::StageControl::Tick(gameTools);
     Tools::Coordinates::Tick(gameTools);
-    Tools::SeaChart::Tick(s_menuOpen);
+    Tools::GreatSeaMap::Tick(s_menuOpen);
     Tools::ZombieHover::Tick(gameTools);
 
     static int s_gameOnTv = -1;

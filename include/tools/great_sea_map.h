@@ -5,7 +5,7 @@
 #include "libwwhd/libwwhd.h"
 
 namespace Tools {
-namespace SeaChart {
+namespace GreatSeaMap {
 static const int   GRID      = 7;
 static const float SQUARE    = 100000.0f;
 static const float SEA_HALF  = 350000.0f;
