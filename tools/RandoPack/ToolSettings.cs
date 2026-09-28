@@ -12,6 +12,9 @@ public sealed class ToolSettings
     /// <summary>Folders to scan for titles besides Cemu's game paths and mlc.</summary>
     public List<string> GameFolders { get; set; } = new();
 
+    /// <summary>Wii U SD card roots to keep up to date.</summary>
+    public List<string> SdCards { get; set; } = new();
+
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WwhdRandoPack", "settings.json");
 

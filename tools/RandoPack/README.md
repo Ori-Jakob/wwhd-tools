@@ -26,6 +26,18 @@ checksum changes per seed. The tool
    EUR group is untouched. Optionally drops checksums of earlier seeds and
    keeps `.bak` copies.
 
+On start the tool fetches the latest release of `Ori-Jakob/wwhd-tools` from
+GitHub and unpacks its `WWHD-Tools-<version>.zip` into
+`%LOCALAPPDATA%\WwhdRandoPack\releases`. With **Use the latest release**
+ticked, **Apply** first updates the selected Cemu's pack from it (or installs
+it into `graphicPacks\WWHD-Tools` when there is none), then adds the seed.
+
+**Installed WWHD Tools** lists every WWHD Tools pack in every Cemu found and
+any Wii U SD card root you add, each marked up to date or out of date against
+the latest release. **Update selected** copies the release over the ticked
+ones: the Cemu pack for packs, the `Wii U` folder of the zip for SD cards.
+Seeds already applied to a pack are put back after the copy.
+
 `.wua` archives are not opened; the randomizer is always an extracted folder.
 Retail titles show up too when they are extracted, which doubles as a check
 that the checksum port agrees with the pack (`0x475bd29f` USA, `0xb7e748de`
@@ -40,10 +52,8 @@ the two enabled for the randomizer or Cemu applies the codecave twice.
     dotnet build tools/RandoPack
     dotnet run --project tools/RandoPack
 
-Needs the .NET 10 SDK on Windows. The app remembers browsed Cemu paths and
-extra game folders in `%LOCALAPPDATA%\WwhdRandoPack\settings.json`.
+Needs the .NET 10 SDK on Windows. The app remembers browsed Cemu paths, extra
+game folders and SD card roots in `%LOCALAPPDATA%\WwhdRandoPack\settings.json`.
 
-## Backlog
-
-- Fetch the latest WWHD Tools release from GitHub and install or update the
-  pack (and the rpl) into the selected Cemu.
+Releases carry a self-contained build as `WWHD-Tools-RandoPack-<version>.zip`,
+made by the `release` workflow.
