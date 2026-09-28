@@ -3,7 +3,6 @@
 #include "core/config.h"
 #include "core/hotkeys.h"
 #include "core/rebind.h"
-#include "tools/save_states.h"
 #include "ui/ui_rebind.h"
 #include "ui/ui_window.h"
 
@@ -49,9 +48,6 @@ void DrawHotkeysWindow()
 
             for (int i = 0; i < Hotkeys::HOTKEY_COUNT; ++i) {
                 const Hotkeys::Id id = (Hotkeys::Id)i;
-                if (Tools::SaveStates::kHidden &&
-                    (id == Hotkeys::HOTKEY_SAVE_STATE || id == Hotkeys::HOTKEY_LOAD_STATE))
-                    continue;
                 if (const char* group = Hotkeys::Group(id)) {
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();

@@ -42,8 +42,17 @@ static uint32_t s_claimActive = 0;
 static uint32_t s_claimSticky = 0;
 static bool     s_sticksPending = false;
 static bool     s_sticksActive = false;
+static uint32_t s_activeSource = 0;
+static uint32_t s_padSample = 0;
+static uint32_t s_kpadSample[RPL_KPAD_CHANNELS] = {};
 
 static const float kStickDeadzone = 0.06f;
+static const float kActiveStick   = 0.5f;
+
+static bool stickMoved(float x, float y)
+{
+    return x * x + y * y > kActiveStick * kActiveStick;
+}
 
 static float applyDeadzone(float v)
 {
@@ -77,6 +86,9 @@ void OnApplicationStart()
     s_wasTouched = false;
     s_stickPushed = false;
     s_buttonsPushed = false;
+    s_activeSource = 0;
+    s_padSample = 0;
+    memset(s_kpadSample, 0, sizeof(s_kpadSample));
 }
 
 void OnApplicationEnd()
@@ -255,6 +267,13 @@ void Sample()
 
     RplPad pad;
     if (s_host->pad(s_host, &pad)) {
+        // Only a fresh read counts, so a controller the game stopped polling cannot win.
+        if (pad.sample != s_padSample) {
+            s_padSample = pad.sample;
+            if (pad.hold || pad.touch.touched || stickMoved(pad.leftX, pad.leftY) ||
+                stickMoved(pad.rightX, pad.rightY))
+                s_activeSource = SOURCE_GAMEPAD;
+        }
         s_accumHeld |= vpadToPro(pad.hold);
         s_accumSources |= SOURCE_GAMEPAD;
         s_sawInput = true;
@@ -279,6 +298,13 @@ void Sample()
             s_accumSources |= SOURCE_CLASSIC;
         } else {
             continue;
+        }
+        if (kpad.sample != s_kpadSample[chan]) {
+            s_kpadSample[chan] = kpad.sample;
+            if (kpad.hold || stickMoved(kpad.leftX, kpad.leftY) ||
+                stickMoved(kpad.rightX, kpad.rightY))
+                s_activeSource = kpad.extension == WPAD_EXT_PRO_CONTROLLER ? SOURCE_PRO
+                                                                           : SOURCE_CLASSIC;
         }
         s_sawInput = true;
         s_lx = kpad.leftX;
@@ -323,6 +349,8 @@ void BeginFrame()
     s_accumSources = 0;
     s_sawInput = false;
 }
+
+uint32_t ActiveSource() { return s_activeSource; }
 
 bool HotkeyToggled()      { return s_hotkeyFired; }
 bool QuickAccessToggled() { return s_quickAccessFired; }

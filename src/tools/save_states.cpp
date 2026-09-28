@@ -1,9 +1,11 @@
 #include "tools/save_states.h"
 
 #include "core/hotkeys.h"
+#include "core/input.h"
 #include "core/logger.h"
 #include "libwupatch/wupatch.h"
 #include "libwwhd/libwwhd.h"
+#include "tools/coordinates.h"
 #include "ui/notifications.h"
 
 #include <coreinit/cache.h>
@@ -17,7 +19,7 @@
 namespace Tools {
 namespace SaveStates {
 static const u32 kMagic   = 0x57575353u;
-static const u32 kVersion = 2u;
+static const u32 kVersion = 3u;
 
 struct Header {
     u32  magic;
@@ -28,13 +30,16 @@ struct Header {
     s16  point;
     u8   saveTable;
     u8   riding;
-    u8   _pad[2];
+    u8   hasShip;
+    u8   hasCamera;
     cXyz pos;
     s16  angle;
     u8   _pad2[2];
     cXyz shipPos;
     s16  shipAngle;
     u8   _pad3[2];
+    cXyz camEye;
+    cXyz camCenter;
     s8   zoneNo[WWHD_ROOM_MAX];
     u32  infoSize;
 };
@@ -51,6 +56,12 @@ static const int   kSameLinkFrames = 120;
 static const int   kBgmFadeFrames  = 30;
 static const int   kLoadLogEvery   = 30;
 static const float kPlaceTolerance = 200.0f;
+// Slot 6 is phase_4, which runs dStage_Create and with it the room control init.
+static const u32   kPhase4Slot     = 6;
+static const int   kCamHoldFrames  = 4;
+static const int   kCamWaitFrames  = 90;
+static const int   kLoaderHoldMax  = 600;
+static const int   kTitleNoticeAt  = 30;
 
 static u8         s_image[sizeof(Header) + sizeof(dSv_info_c)];
 static dSv_info_c s_pendingInfo;
@@ -65,11 +76,24 @@ static int        s_frames = 0;
 static bool       s_sawNoLink = false;
 static const void* s_oldLink = nullptr;
 static u32        s_realPhase1 = 0;
+static u32        s_realPhase4 = 0;
+static bool       s_restoreZones = false;
+static int        s_camHold = 0;
+static int        s_camWait = 0;
+static u32        s_padWanted = WWHD_DISPLAY_MODE_UNKNOWN;
+static u32        s_padBefore = WWHD_DISPLAY_MODE_UNKNOWN;
 
 static WuPatch::Handle s_hookSwap = WuPatch::kInvalidHandle;
+static WuPatch::Handle s_hookSwap4 = WuPatch::kInvalidHandle;
 
 static volatile u32 s_installWanted = 0;
 static volatile u32 s_installed = 0;
+static volatile u32 s_zoneWanted = 0;
+static volatile u32 s_zonesRestored = 0;
+static volatile s32 s_holdFrames = 0;
+static volatile s32 s_holdPending = 0;
+static volatile s32 s_holdDeferred = 0;
+static volatile u32 s_padSet = 0;
 
 static OSThread       s_thread;
 static bool           s_threadStarted = false;
@@ -231,10 +255,47 @@ bool ReadFinished(bool* ok, uint32_t* size)
     return true;
 }
 
+// The pad mode the game should end up in for the controller in the user's hands.
+static u32 wantedPadMode()
+{
+    const u32 now = wwhd_getDisplayMode();
+    switch (Input::ActiveSource()) {
+    case Input::SOURCE_PRO:
+        return WWHD_DISPLAY_MODE_PRO;
+    case Input::SOURCE_GAMEPAD:
+        return now == WWHD_DISPLAY_MODE_TV || now == WWHD_DISPLAY_MODE_DRC ? now
+                                                                           : WWHD_DISPLAY_MODE_TV;
+    default:
+        return WWHD_DISPLAY_MODE_UNKNOWN;
+    }
+}
+
+// What the file select does after its controller choice.
+static bool applyPadMode()
+{
+    if (s_padWanted == WWHD_DISPLAY_MODE_UNKNOWN)
+        return true;
+    wwhd_setChosenController(s_padWanted != WWHD_DISPLAY_MODE_PRO);
+    if (wwhd_getDisplayMode() == s_padWanted)
+        return true;
+    return wwhd_setPadMode(s_padWanted) != 0;
+}
+
 static int scenePhase1Hook(void* scene)
 {
     if (s_installWanted) {
         OSMemoryBarrier();
+        // Old scene archives are only freed once the loader idles, so wait for it.
+        const bool banks = !s_fromTitle || dComIfG_commonBgmBanksReady() != 0;
+        if ((!wwhd_resLoaderSettled() || !banks) && s_holdFrames < kLoaderHoldMax) {
+            if (s_holdFrames == 0) {
+                s_holdPending  = wwhd_resLoaderPending();
+                s_holdDeferred = wwhd_resLoaderDeferred();
+            }
+            s_holdFrames = s_holdFrames + 1;
+            return 0;
+        }
+        s_padSet = applyPadMode() ? 1 : 0;
         dSv_info_c* live = dComIfGs_getSaveInfo();
         if (live)
             memcpy(live, &s_pendingInfo, sizeof(dSv_info_c));
@@ -243,6 +304,7 @@ static int scenePhase1Hook(void* scene)
             for (int i = 0; i < WWHD_ROOM_MAX; ++i)
                 rooms[i].mZoneNo = s_loading.zoneNo[i];
         }
+        s_zoneWanted = s_restoreZones ? 1 : 0;
         s_installWanted = 0;
         OSMemoryBarrier();
         s_installed = 1;
@@ -252,27 +314,64 @@ static int scenePhase1Hook(void* scene)
     return real ? real(scene) : 0;
 }
 
-static WuPatch::Handle hookSwap()
+// A restart spawn clears every zone's room switches in the room control init.
+static int scenePhase4Hook(void* scene)
 {
-    const wwhd_addr_t slot = dScnPly_getPhase1SlotAddr();
-    if (s_hookSwap == WuPatch::kInvalidHandle && slot) {
+    dScnPly_phase_t real = (dScnPly_phase_t)(uintptr_t)s_realPhase4;
+    const int result = real ? real(scene) : 0;
+    if (s_zoneWanted) {
+        OSMemoryBarrier();
+        dSv_info_c* live = dComIfGs_getSaveInfo();
+        if (live)
+            memcpy(live->mZone, s_pendingInfo.mZone, sizeof(live->mZone));
+        dStage_roomStatus_c* rooms = dStage_getRoomStatusTable();
+        if (rooms) {
+            for (int i = 0; i < WWHD_ROOM_MAX; ++i)
+                rooms[i].mZoneNo = s_loading.zoneNo[i];
+        }
+        s_zoneWanted = 0;
+        OSMemoryBarrier();
+        s_zonesRestored = 1;
+    }
+    return result;
+}
+
+static WuPatch::Handle declareSwap(WuPatch::Handle& handle, wwhd_addr_t slot, uint32_t value)
+{
+    if (handle == WuPatch::kInvalidHandle && slot) {
         WuPatch::Data::SwapDesc d = {};
         d.owner      = "Save States";
         d.linkAddr   = slot;
         d.stride     = 4;
         d.count      = 1;
         d.wordOffset = 0;
-        d.value      = (uint32_t)(uintptr_t)&scenePhase1Hook;
-        s_hookSwap   = WuPatch::Data::Declare(d);
+        d.value      = value;
+        handle       = WuPatch::Data::Declare(d);
     }
-    return s_hookSwap;
+    return handle;
+}
+
+static WuPatch::Handle hookSwap()
+{
+    return declareSwap(s_hookSwap, dScnPly_getPhase1SlotAddr(),
+                       (uint32_t)(uintptr_t)&scenePhase1Hook);
+}
+
+static WuPatch::Handle hookSwap4()
+{
+    const wwhd_addr_t slot =
+        wwhd_regionResolved ? wwhd_map->dScnPly_phaseTable + kPhase4Slot * 4u : 0u;
+    return declareSwap(s_hookSwap4, slot, (uint32_t)(uintptr_t)&scenePhase4Hook);
 }
 
 static void releaseHook()
 {
     if (s_hookSwap != WuPatch::kInvalidHandle)
         WuPatch::Data::SetEnabled(s_hookSwap, false);
+    if (s_hookSwap4 != WuPatch::kInvalidHandle)
+        WuPatch::Data::SetEnabled(s_hookSwap4, false);
     s_installWanted = 0;
+    s_zoneWanted = 0;
     s_phase = PHASE_IDLE;
 }
 
@@ -283,7 +382,7 @@ static void logLoadState(const char* tag)
                 "next=%.7s enable=%d | link=%d proc=%d demo=%u | overlap=%08X busy=%d "
                 "bgm=%u bgmBusy=%d | event=%u camPlay=%u | audio stage cur=%d req=%d "
                 "track playing=%08X pending=%08X request=%d restart=%d "
-                "banks=%u/%u changed=%d/%d",
+                "banks=%u/%u changed=%d/%d | loader=%d/%d pad=%d hold=%d",
                 tag, (int)s_phase, s_frames, (int)s_installed,
                 (int)fopScn_getName(fopScnM_getStageScene()), dComIfGp_getCurStageName(),
                 dComIfGp_getNextStageName(), dComIfGp_isNextStagePending(),
@@ -296,7 +395,9 @@ static void logLoadState(const char* tag)
                 (unsigned)mDoAud_getPlayingBgm(), (unsigned)mDoAud_getPendingBgm(),
                 mDoAud_isRequestPending(), mDoAud_isRestartWanted(),
                 (unsigned)mDoAud_getBankSet(), (unsigned)mDoAud_getBankSet2(),
-                mDoAud_bankSetChanged(), mDoAud_bankSet2Changed());
+                mDoAud_bankSetChanged(), mDoAud_bankSet2Changed(),
+                (int)wwhd_resLoaderPending(), (int)wwhd_resLoaderDeferred(),
+                (int)wwhd_getDisplayMode(), (int)s_holdFrames);
 }
 
 static void abortLoad(const char* why)
@@ -354,10 +455,12 @@ bool Save(const char* name)
     h->riding    = riding ? 1 : 0;
     h->pos       = *pos;
     h->angle     = shape->y;
-    if (riding) {
+    if (ship) {
+        h->hasShip   = 1;
         h->shipPos   = ship->base.current.pos;
         h->shipAngle = ship->base.shape_angle.y;
     }
+    h->hasCamera = Coordinates::GetCamera(&h->camEye, &h->camCenter) ? 1 : 0;
     for (int i = 0; i < WWHD_ROOM_MAX; ++i) {
         const dStage_roomStatus_c* r = dStage_getRoomStatus(i);
         h->zoneNo[i] = r ? r->mZoneNo : (s8)-1;
@@ -438,10 +541,13 @@ static bool beginBlockLoad(const dSv_info_c* block, const char* stage, s16 point
 
     wwhd_gptr_t* table = dScnPly_getPhaseTable();
     const WuPatch::Handle swap = hookSwap();
-    if (!table || swap == WuPatch::kInvalidHandle)
+    const WuPatch::Handle swap4 = hookSwap4();
+    if (!table || swap == WuPatch::kInvalidHandle || swap4 == WuPatch::kInvalidHandle)
         return fail("The scene phase table is unavailable.");
     const u32 current = table[WWHD_DSCNPLY_PHASE1_SLOT];
-    if (current == (u32)(uintptr_t)&scenePhase1Hook)
+    const u32 current4 = table[kPhase4Slot];
+    if (current == (u32)(uintptr_t)&scenePhase1Hook ||
+        current4 == (u32)(uintptr_t)&scenePhase4Hook)
         return fail("The scene hook is still installed from the last load.");
     if (current != WWHD_TEXT(wwhd_map->dScnPly_phase1))
         Logger::LogWarn("[savestate] phase_1 slot holds %08X, expected %08X; chaining to it",
@@ -460,6 +566,17 @@ static bool beginBlockLoad(const dSv_info_c* block, const char* stage, s16 point
     s_label[sizeof(s_label) - 1] = '\0';
 
     s_realPhase1    = current;
+    s_realPhase4    = current4;
+    s_restoreZones  = zoneNo != nullptr;
+    s_zoneWanted    = 0;
+    s_zonesRestored = 0;
+    s_camHold       = 0;
+    s_holdFrames    = 0;
+    s_holdPending   = 0;
+    s_holdDeferred  = 0;
+    s_padSet        = 0;
+    s_padBefore     = wwhd_getDisplayMode();
+    s_padWanted     = wantedPadMode();
     s_installed     = 0;
     s_banksRequested = false;
     s_titleWaiting = false;
@@ -469,12 +586,15 @@ static bool beginBlockLoad(const dSv_info_c* block, const char* stage, s16 point
     s_frames        = 0;
     s_phase         = PHASE_ARM;
     WuPatch::Data::SetEnabled(swap, true);
+    WuPatch::Data::SetEnabled(swap4, true);
 
     Notifications::ShowStickyf(kNotifyKey, Notifications::Info, "Save States",
                                "Loading %s ...", s_label);
-    Logger::Log("[savestate] loading %s: stage=%s room=%d layer=%d point=%d%s",
+    Logger::Log("[savestate] loading %s: stage=%s room=%d layer=%d point=%d%s, "
+                "controller source %u pad mode %d -> %d",
                 s_label, s_loading.stage, (int)room, (int)layer, (int)point,
-                s_fromTitle ? " from the title" : "");
+                s_fromTitle ? " from the title" : "", (unsigned)Input::ActiveSource(),
+                (int)s_padBefore, (int)s_padWanted);
     logLoadState("load begin");
     return true;
 }
@@ -486,6 +606,8 @@ bool LoadBlock(const dSv_info_c* block, const char* stage, int16_t point,
         return fail("Still busy with the last state.");
     s_verifyPlace = false;
     s_loading.riding = 0;
+    s_loading.hasShip = 0;
+    s_loading.hasCamera = 0;
     return beginBlockLoad(block, stage, point, room, layer, zoneNo, label);
 }
 
@@ -542,18 +664,42 @@ static void finishLoad()
     }
     const float off2 = dx * dx + dy * dy + dz * dz;
 
-    if (s_verifyPlace && off2 > kPlaceTolerance * kPlaceTolerance) {
+    if (s_verifyPlace && off2 > kPlaceTolerance * kPlaceTolerance)
+        Logger::LogWarn("[savestate] respawn missed by (%.1f,%.1f,%.1f)", dx, dy, dz);
+    if (s_verifyPlace) {
         daPy_setPosition(&s_loading.pos);
+        daPy_resetFallStart(&s_loading.pos);
         daPy_setFacing(s_loading.angle);
-        Logger::LogWarn("[savestate] respawn missed by (%.1f,%.1f,%.1f); placed directly",
-                        dx, dy, dz);
+        if (csXyz* store = daPy_getStoreAngle())
+            store->y = s_loading.angle;
+        if (daPy_lk_c* link = daPy_lk_c_getPlayer())
+            link->base.current.angle.y = s_loading.angle;
+    }
+    if (s_loading.hasShip && !s_loading.riding) {
+        if (daShip_c* ship = get_daShip()) {
+            daShip_setPosition(ship, &s_loading.shipPos);
+            daShip_setFacing(ship, s_loading.shipAngle);
+        }
+    }
+    s_camHold = s_loading.hasCamera ? kCamHoldFrames : 0;
+    s_camWait = 0;
+    const u32 padAfterLoad = wwhd_getDisplayMode();
+    if (s_padWanted != WWHD_DISPLAY_MODE_UNKNOWN && padAfterLoad != s_padWanted) {
+        const bool ok = applyPadMode();
+        Logger::LogWarn("[savestate] pad mode was %d after the load, wanted %d: %s",
+                        (int)padAfterLoad, (int)s_padWanted, ok ? "set again" : "refused");
     }
     releaseHook();
     setStatus("Loaded %s", s_label);
     Notifications::ShowKeyedTitledf(kNotifyKey, Notifications::Success, "Save States",
                                     "Loaded %s", s_label);
-    Logger::Log("[savestate] loaded %s after %d frames, off by %.1f", s_label,
-                s_frames, off2 > 0.0f ? sqrtf(off2) : 0.0f);
+    Logger::Log("[savestate] loaded %s after %d frames, spawn off by %.1f, zones %s, camera %d, "
+                "pad mode %d (%s)",
+                s_label, s_frames, off2 > 0.0f ? sqrtf(off2) : 0.0f,
+                !s_restoreZones ? "not saved" : s_zonesRestored ? "restored" : "MISSED",
+                (int)s_loading.hasCamera, (int)wwhd_getDisplayMode(),
+                s_padWanted == WWHD_DISPLAY_MODE_UNKNOWN ? "left alone"
+                : s_padSet ? "set at install" : "install set refused");
     logLoadState("after load");
 }
 
@@ -562,7 +708,8 @@ static void tickLoad()
     switch (s_phase) {
     case PHASE_ARM: {
         const WuPatch::State st = WuPatch::Data::GetState(s_hookSwap);
-        if (st == WuPatch::STATE_APPLIED) {
+        const WuPatch::State st4 = WuPatch::Data::GetState(s_hookSwap4);
+        if (st == WuPatch::STATE_APPLIED && st4 == WuPatch::STATE_APPLIED) {
             if (s_fromTitle) {
                 if (!s_banksRequested) {
                     s_banksRequested = true;
@@ -573,19 +720,17 @@ static void tickLoad()
                     abortLoad("The title screen went away before the game could start.");
                     return;
                 }
-                const bool ready = dComIfG_commonBgmBanksReady() != 0 &&
-                                   daTitle_isWaitingForStart() != 0 &&
-                                   !fopScnM_isChangeBusy() && !fopScnM_getOverlap();
-                if (!ready) {
-                    if (!s_titleWaiting) {
+                // The loader and the sound banks are waited for in phase_1, behind the fade.
+                if (fopScnM_isChangeBusy() || fopScnM_getOverlap()) {
+                    if (++s_frames == kTitleNoticeAt && !s_titleWaiting) {
                         s_titleWaiting = true;
-                        setStatus("Waiting for the title screen to settle ...");
+                        setStatus("Waiting for the title screen ...");
                         Notifications::ShowStickyf(kNotifyKey, Notifications::Info,
                                                    "Save States",
-                                                   "Waiting for the title screen to settle ...");
-                        Logger::Log("[savestate] title start: waiting for the title screen");
+                                                   "Waiting for the title screen ...");
+                        Logger::Log("[savestate] title start: waiting for a scene change "
+                                    "to finish");
                     }
-                    ++s_frames;
                     return;
                 }
                 if (s_titleWaiting) {
@@ -594,8 +739,11 @@ static void tickLoad()
                     Notifications::ShowStickyf(kNotifyKey, Notifications::Info,
                                                "Save States", "Loading %s ...", s_label);
                 }
-                Logger::Log("[savestate] title start: PRESS START up and sound banks "
-                            "ready after %d frames", s_frames);
+                Logger::Log("[savestate] title start after %d frames: title state %d, "
+                            "loader pending %d deferred %d, banks %d",
+                            s_frames, daTitle_isWaitingForStart(),
+                            (int)wwhd_resLoaderPending(), (int)wwhd_resLoaderDeferred(),
+                            dComIfG_commonBgmBanksReady());
             }
             s_installWanted = 1;
             OSMemoryBarrier();
@@ -621,7 +769,8 @@ static void tickLoad()
             s_phase = PHASE_WARP;
             s_frames = 0;
         } else if (++s_frames > kArmFrames) {
-            Logger::LogError("[savestate] scene hook not applied: %s", WuPatch::StateName(st));
+            Logger::LogError("[savestate] scene hooks not applied: phase_1 %s, phase_4 %s",
+                             WuPatch::StateName(st), WuPatch::StateName(st4));
             abortLoad("The scene hook could not be installed.");
         }
         break;
@@ -632,6 +781,15 @@ static void tickLoad()
         if (s_frames % kLoadLogEvery == 0)
             logLoadState("warp");
         if (s_installed) {
+            OSMemoryBarrier();
+            if (s_holdFrames > 0)
+                Logger::Log("[savestate] phase_1 held %d frames%s: loader pending %d deferred %d "
+                            "at first, banks %d",
+                            (int)s_holdFrames, s_holdFrames >= kLoaderHoldMax ? " (gave up)" : "",
+                            (int)s_holdPending, (int)s_holdDeferred,
+                            dComIfG_commonBgmBanksReady());
+            else
+                Logger::Log("[savestate] phase_1 found the loader settled");
             s_phase = PHASE_SETTLE;
             s_frames = 0;
         } else if (++s_frames > kWarpFrames) {
@@ -727,7 +885,7 @@ void Tick(bool acceptInput)
             s_foreignDone = true;
         }
     }
-    if (acceptInput && !IsBusy() && !kHidden) {
+    if (acceptInput && !IsBusy()) {
         if (Hotkeys::Pressed(Hotkeys::HOTKEY_SAVE_STATE))
             Save(nullptr);
         else if (Hotkeys::Pressed(Hotkeys::HOTKEY_LOAD_STATE))
@@ -735,6 +893,15 @@ void Tick(bool acceptInput)
     }
     if (s_phase != PHASE_IDLE)
         tickLoad();
+    if (s_phase == PHASE_IDLE && s_camHold > 0) {
+        if (Coordinates::CameraLive()) {
+            Coordinates::SetCamera(s_loading.camEye, s_loading.camCenter);
+            --s_camHold;
+        } else if (++s_camWait > kCamWaitFrames) {
+            Logger::LogWarn("[savestate] camera never came up; not restored");
+            s_camHold = 0;
+        }
+    }
 }
 
 void OnApplicationStart()
@@ -746,7 +913,13 @@ void OnApplicationStart()
     s_installWanted = 0;
     s_installed = 0;
     s_realPhase1 = 0;
+    s_realPhase4 = 0;
+    s_zoneWanted = 0;
+    s_camHold = 0;
+    s_holdFrames = 0;
+    s_padWanted = WWHD_DISPLAY_MODE_UNKNOWN;
     s_hookSwap = WuPatch::kInvalidHandle;
+    s_hookSwap4 = WuPatch::kInvalidHandle;
     s_listValid = false;
     s_count = 0;
     s_status[0] = '\0';
@@ -755,6 +928,7 @@ void OnApplicationStart()
 void OnApplicationEnd()
 {
     s_installWanted = 0;
+    s_zoneWanted = 0;
     s_phase = PHASE_IDLE;
 }
 }

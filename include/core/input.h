@@ -59,6 +59,9 @@ void FeedMenu(ImGuiIO& io, float displayWidth, float displayHeight,
 
 const Snapshot& Current();
 
+// The Source that last had a button, stick or touch in use; 0 before any.
+uint32_t ActiveSource();
+
 // Buttons claimed this frame are withheld from menu navigation until released.
 void ClaimMenuButtons(uint32_t buttons);
 void ClaimMenuSticks();

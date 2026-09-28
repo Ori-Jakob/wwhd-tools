@@ -159,9 +159,7 @@ const char* Blocker(Action action)
     const bool riding = daPy_isRidingShip() != 0;
     switch (action) {
     case ACTION_TELEPORT_LINK:
-        if (riding)
-            return "Get out of the boat first, or move Link and the boat together.";
-        return nullptr;
+        return riding && !ship ? "The boat is not on the sea." : nullptr;
     case ACTION_TELEPORT_BOAT:
     case ACTION_TELEPORT_BOTH:
         return ship ? nullptr : "The boat is not on the sea.";
@@ -282,6 +280,17 @@ static bool moveBoat(float x, float z, s16 angle)
     return true;
 }
 
+// Aboard, Link goes wherever the boat goes.
+static bool sailAboard(float x, float z, const char* label)
+{
+    if (!moveBoat(x, z, s_ui.facing))
+        return false;
+    daShip_c* ship = get_daShip();
+    cameraBehind(ship->base.current.pos, s_ui.facing, kCamBack * 2.0f, kCamUp * 1.5f);
+    startJob(JOB_STREAM, x, z, s_ui.facing, label);
+    return true;
+}
+
 static void cursorLabel(char* out, int cap)
 {
     char square[40];
@@ -304,31 +313,25 @@ bool Run(Action action)
 
     switch (action) {
     case ACTION_TELEPORT_LINK:
+        if (riding)
+            return sailAboard(x, z, label);
         startJob(JOB_LINK_POINT, x, z, s_ui.facing, label);
         return true;
 
     case ACTION_TELEPORT_BOAT:
+        if (riding)
+            return sailAboard(x, z, label);
         if (!moveBoat(x, z, s_ui.facing))
             return false;
-        if (riding) {
-            daShip_c* ship = get_daShip();
-            cameraBehind(ship->base.current.pos, s_ui.facing, kCamBack * 2.0f, kCamUp * 1.5f);
-            startJob(JOB_STREAM, x, z, s_ui.facing, label);
-        } else {
-            notify(Notifications::Success, "Boat moved to %s", label);
-        }
+        notify(Notifications::Success, "Boat moved to %s", label);
         return true;
 
     case ACTION_TELEPORT_BOTH:
+        if (riding)
+            return sailAboard(x, z, label);
         if (!moveBoat(x, z, s_ui.facing))
             return false;
-        if (riding) {
-            daShip_c* ship = get_daShip();
-            cameraBehind(ship->base.current.pos, s_ui.facing, kCamBack * 2.0f, kCamUp * 1.5f);
-            startJob(JOB_STREAM, x, z, s_ui.facing, label);
-        } else {
-            startJob(JOB_LINK_BOAT, x, z, s_ui.facing, label);
-        }
+        startJob(JOB_LINK_BOAT, x, z, s_ui.facing, label);
         return true;
 
     case ACTION_LINK_TO_BOAT: {

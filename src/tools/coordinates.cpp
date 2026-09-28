@@ -49,6 +49,7 @@ static const void* s_oldLink = nullptr;
 static char   s_status[96] = "";
 
 static dCamera_c* s_cam = nullptr;
+static u32        s_camFrame = 0;
 
 static bool validIndex(int i) { return i >= 0 && i < SLOT_COUNT; }
 
@@ -114,13 +115,33 @@ void OnCameraRun(void* camera)
     dCamera_c* cam = (dCamera_c*)camera;
     if (!cam)
         return;
-    if (cam->mPlayerIdx == 0 || !s_cam)
+    if (cam->mPlayerIdx == 0 || !s_cam) {
         s_cam = cam;
+        s_camFrame = cCt_getFrameCount();
+    }
+}
+
+// The camera is recreated on a stage change, so only trust one that ran just now.
+bool CameraLive()
+{
+    return s_cam && cCt_getFrameCount() - s_camFrame <= 2u;
+}
+
+bool GetCamera(cXyz* eye, cXyz* center)
+{
+    const dCam_view_t* view = CameraLive() ? dCam_getView(dCam_getProcess(s_cam)) : nullptr;
+    if (!view)
+        return false;
+    if (eye)
+        *eye = view->mEye;
+    if (center)
+        *center = view->mCenter;
+    return true;
 }
 
 static void applyCamera(const cXyz& eye, const cXyz& center)
 {
-    if (!s_cam)
+    if (!CameraLive())
         return;
     s_cam->mWorkEye = eye;
     s_cam->mWorkCenter = center;
@@ -336,7 +357,7 @@ bool SaveSlot(int i)
     s.pos   = *pos;
     s.angle = shape->y;
 
-    const dCam_view_t* view = s_cam ? dCam_getView(dCam_getProcess(s_cam)) : nullptr;
+    const dCam_view_t* view = CameraLive() ? dCam_getView(dCam_getProcess(s_cam)) : nullptr;
     if (view) {
         s.hasCamera = true;
         s.camEye = view->mEye;

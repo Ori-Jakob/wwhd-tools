@@ -36,6 +36,8 @@ bool GoToInStage(s8 room, const cXyz& pos, bool setFacing, s16 angle,
                  const char* label);
 
 void SetCamera(const cXyz& eye, const cXyz& center);
+bool GetCamera(cXyz* eye, cXyz* center);
+bool CameraLive();
 
 bool        IsBusy();
 const char* Status();

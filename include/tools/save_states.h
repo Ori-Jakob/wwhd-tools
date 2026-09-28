@@ -11,8 +11,6 @@ namespace SaveStates {
 static const int kNameMax = 32;
 static const int kListMax = 64;
 
-static const bool kHidden = true;
-
 bool Save(const char* name);
 
 bool Load(const char* name);

@@ -20,8 +20,6 @@ static char s_name[States::kNameMax] = "";
 
 void DrawSaveStatesItem()
 {
-    if (States::kHidden)
-        return;
     Window::Checkbox("Save States", &s_open, kWindowName);
 }
 
@@ -61,7 +59,7 @@ static void drawRow(int index)
 
 void DrawSaveStatesWindow()
 {
-    if (States::kHidden || !s_open)
+    if (!s_open)
         return;
 
     ImGui::SetNextWindowSize(ImVec2(540.0f, 420.0f), ImGuiCond_FirstUseEver);
