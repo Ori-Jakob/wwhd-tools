@@ -9,8 +9,15 @@ enum DrawnScreen {
     DRAWN_SCREEN_TV      = 2,
 };
 
+enum LoadController {
+    LOAD_CONTROLLER_AUTO    = 0,
+    LOAD_CONTROLLER_GAMEPAD = 1,
+    LOAD_CONTROLLER_PRO     = 2,
+};
+
 struct Settings {
     uint32_t drawnScreen;
+    uint32_t loadController;
     float    uiScale;
     bool     hudOnGameScreen;
     bool     hudToTv;
@@ -23,6 +30,13 @@ struct Settings {
     bool     flyCamEnabled;
     float    flyCamSpeed;
     bool     mssEnabled;
+
+    bool     modernCam;
+    bool     modernCamSailing;
+    float    camSensX;
+    float    camSensY;
+    float    cameraFov;
+    bool     cameraFovAll;
 
     bool     zombieHoverEnabled;
     bool     zombieHoverHeal;

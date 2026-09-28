@@ -17,6 +17,7 @@ void ResetToDefaults()
 {
     Settings& s = g_settings;
     s.drawnScreen    = DRAWN_SCREEN_BOTH;
+    s.loadController = LOAD_CONTROLLER_AUTO;
     s.uiScale        = 1.0f;
     s.hudOnGameScreen = true;
     s.hudToTv        = false;
@@ -29,6 +30,13 @@ void ResetToDefaults()
     s.flyCamEnabled  = true;
     s.flyCamSpeed    = 20.0f;
     s.mssEnabled     = false;
+
+    s.modernCam        = false;
+    s.modernCamSailing = false;
+    s.camSensX         = 1.0f;
+    s.camSensY         = 1.0f;
+    s.cameraFov        = 60.0f;
+    s.cameraFovAll     = false;
 
     s.zombieHoverEnabled = false;
     s.zombieHoverHeal    = true;

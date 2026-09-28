@@ -7,6 +7,7 @@
 #include "hud/hud_collision.h"
 #include "render/scene_depth.h"
 #include "hud/hud_frame_stats.h"
+#include "tools/camera.h"
 #include "hud/hud_game_info.h"
 #include "hud/hud_input_viewer.h"
 #include "hud/hud_zombie_hover.h"
@@ -20,6 +21,8 @@
 #include "ui/ui_hotkey.h"
 
 #include "imgui.h"
+
+#include <math.h>
 
 namespace Ui {
 namespace Panels {
@@ -41,6 +44,76 @@ static bool drawFlyCam(const Control::Descriptor* d, Control::Surface)
         ImGui::TextUnformatted("R/L double/halve speed; hold A/B for max/min speed");
         ImGui::EndTooltip();
     }
+    return changed;
+}
+
+static bool drawModernCam(const Control::Descriptor* d, Control::Surface)
+{
+    const bool changed = ImGui::Checkbox(d->name, &Config::g_settings.modernCam);
+    if (changed)
+        Config::MarkDirty();
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Right stick up/down looks up/down instead of zooming, and the camera\n"
+                          "stays where you leave it. ZL puts it back behind Link.");
+    return changed;
+}
+
+static bool drawModernCamOptions(const Control::Descriptor*, Control::Surface)
+{
+    Config::Settings& s = Config::g_settings;
+    if (!s.modernCam)
+        return false;
+    ImGui::Indent();
+    bool changed = ImGui::Checkbox("While sailing##mcam", &s.modernCamSailing);
+    ImGui::SetNextItemWidth(180.0f);
+    changed |= Field::SliderFloat("Look speed X##mcam", &s.camSensX, 0.25f, 3.0f, "%.2fx");
+    ImGui::SetNextItemWidth(180.0f);
+    changed |= Field::SliderFloat("Look speed Y##mcam", &s.camSensY, 0.25f, 3.0f, "%.2fx");
+    if (changed)
+        Config::MarkDirty();
+    ImGui::Unindent();
+    return changed;
+}
+
+static bool drawFov(const Control::Descriptor* d, Control::Surface)
+{
+    Config::Settings& s = Config::g_settings;
+    ImGui::SetNextItemWidth(180.0f);
+    bool changed = Field::SliderFloat(d->name, &s.cameraFov, 30.0f, 110.0f, "%.0f");
+    if (changed)
+        s.cameraFov = floorf(s.cameraFov + 0.5f);
+    if (ImGui::IsItemHovered()) {
+        const float shown = Tools::Camera::ShownFov();
+        if (shown > 0.0f)
+            ImGui::SetTooltip("Vertical, in degrees; the game uses 60.\nNow %.1f (game %.1f)",
+                              (double)shown, (double)Tools::Camera::GameFov());
+        else
+            ImGui::SetTooltip("Vertical, in degrees; the game uses 60.");
+    }
+    ImGui::SameLine();
+    ImGui::BeginDisabled(s.cameraFov == 60.0f);
+    if (ImGui::Button("Reset##fov")) {
+        s.cameraFov = 60.0f;
+        changed = true;
+    }
+    ImGui::EndDisabled();
+    if (changed)
+        Config::MarkDirty();
+    return changed;
+}
+
+static bool drawFovOptions(const Control::Descriptor*, Control::Surface)
+{
+    Config::Settings& s = Config::g_settings;
+    if (s.cameraFov == 60.0f)
+        return false;
+    ImGui::Indent();
+    const bool changed = ImGui::Checkbox("Cutscenes and dialogue too##fov", &s.cameraFovAll);
+    if (changed)
+        Config::MarkDirty();
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Off: only the Link and boat cameras use it; events keep the game's view.");
+    ImGui::Unindent();
     return changed;
 }
 
@@ -235,6 +308,16 @@ void RegisterControls()
                                    drawFlyCam, nullptr, nullptr };
     Control::Register(flyCam);
 
+    Control::Descriptor modernCam = { "camera.modern", "Modern camera",
+                                      "Tools / Camera",
+                                      drawModernCam, drawModernCamOptions, nullptr };
+    Control::Register(modernCam);
+
+    Control::Descriptor fov = { "camera.fov", "Field of view",
+                                "Tools / Camera",
+                                drawFov, drawFovOptions, nullptr };
+    Control::Register(fov);
+
     Control::Descriptor gameInfo = { "hud.game_info", "Game Info",
                                      "Tools / HUD",
                                      drawGameInfo, nullptr, nullptr };
@@ -275,6 +358,8 @@ void DrawTools()
 
     ImGui::SeparatorText("Camera");
     Control::Draw("camera.fly_cam", Control::SURFACE_MENU);
+    Control::Draw("camera.modern", Control::SURFACE_MENU);
+    Control::Draw("camera.fov", Control::SURFACE_MENU);
 
     ImGui::SeparatorText("Stage");
     if (ImGui::Button("Reset game"))

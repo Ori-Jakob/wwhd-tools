@@ -110,6 +110,23 @@ void DrawSettings()
 
     ImGui::SeparatorText("Game");
 
+    ImGui::TextUnformatted("Controller after a load");
+    ImGui::SameLine();
+    int loadPad = (int)s.loadController;
+    bool loadPadChanged = false;
+    loadPadChanged |= ImGui::RadioButton("Auto##loadpad", &loadPad, Config::LOAD_CONTROLLER_AUTO);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("The controller that last had a button or stick in use.");
+    ImGui::SameLine();
+    loadPadChanged |= ImGui::RadioButton("Gamepad##loadpad", &loadPad,
+                                         Config::LOAD_CONTROLLER_GAMEPAD);
+    ImGui::SameLine();
+    loadPadChanged |= ImGui::RadioButton("Pro##loadpad", &loadPad, Config::LOAD_CONTROLLER_PRO);
+    if (loadPadChanged) {
+        s.loadController = (uint32_t)loadPad;
+        Config::MarkDirty();
+    }
+
     if (wwhd_titleId)
         ImGui::Text("Title ID: %08x%08x", (unsigned)(wwhd_titleId >> 32),
                     (unsigned)(wwhd_titleId & 0xFFFFFFFFu));

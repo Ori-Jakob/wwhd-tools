@@ -6,6 +6,7 @@
 #include "core/version.h"
 #include "render/image.h"
 #include "render/renderer.h"
+#include "ui/overlay.h"
 #include "ui/ui_hotkey.h"
 
 #include "imgui.h"
@@ -97,7 +98,7 @@ void Draw(ImGuiIO& io)
     ImGui::End();
     ImGui::PopStyleVar(3);
 
-    s_remaining -= io.DeltaTime;
+    s_remaining -= Overlay::FrameSeconds();
 }
 }
 }

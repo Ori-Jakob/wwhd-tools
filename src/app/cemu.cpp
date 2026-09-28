@@ -6,6 +6,7 @@
 #include "core/frame_stats.h"
 #include "hud/hud_collision.h"
 #include "render/gbuffer.h"
+#include "tools/camera.h"
 #include "tools/coordinates.h"
 #include "tools/flycam.h"
 #include "ui/overlay.h"
@@ -593,9 +594,14 @@ void noteVpad(VPADStatus* buffers, uint32_t count)
         if (block) {
             s.hold = s.trigger = s.release = 0;
             s.rightStick.x = s.rightStick.y = 0.0f;
+            // The game counts a tpNormal sample with valid X and Y as a touch without reading touched.
+            const uint16_t noPoint = VPAD_INVALID_X | VPAD_INVALID_Y;
             s.tpNormal.touched = 0;
+            s.tpNormal.validity = noPoint;
             s.tpFiltered1.touched = 0;
+            s.tpFiltered1.validity = noPoint;
             s.tpFiltered2.touched = 0;
+            s.tpFiltered2.validity = noPoint;
         }
         if (s_stickHeld) {
             s.leftStick.x = s_stickX;
@@ -758,6 +764,7 @@ RPL_EXPORT uint32_t rpl_cemu_entry(uint32_t reason, void* a, void* b, void* c)
     case RPL_CEMU_CAM_RUN:
         Hud::Collision::OnCameraRun(a);
         Tools::Coordinates::OnCameraRun(a);
+        Tools::Camera::OnCameraRun(a);
         return 1;
 
     case RPL_CEMU_MASS_CHK:

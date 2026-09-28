@@ -3,6 +3,7 @@
 #include "imgui.h"
 #include "core/settings.h"
 #include "render/renderer.h"
+#include "ui/overlay.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -242,9 +243,10 @@ void Draw(ImGuiIO& io)
         ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoSavedSettings |
         ImGuiWindowFlags_AlwaysAutoResize;
 
+    const float dt = Ui::Overlay::FrameSeconds();
     for (int i = 0; i < s_count; ++i) {
         Slot& slot = s_slots[i];
-        slot.age += io.DeltaTime;
+        slot.age += dt;
 
         const float alpha = slotAlpha(slot);
         const ImVec4 accent = kindColor(slot.kind);
@@ -287,7 +289,7 @@ void Draw(ImGuiIO& io)
         ImGui::PopStyleVar(5);
 
         if (!slot.sticky)
-            slot.remaining -= io.DeltaTime;
+            slot.remaining -= dt;
     }
 
     int n = 0;

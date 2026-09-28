@@ -7,6 +7,7 @@
 #include "core/frame_stats.h"
 #include "hud/hud_collision.h"
 #include "render/gbuffer.h"
+#include "tools/camera.h"
 #include "tools/coordinates.h"
 #include "tools/flycam.h"
 
@@ -146,6 +147,7 @@ RPL_DECL_REPLACE(uint32_t, dCam_run, void* camera)
     const uint32_t result = real_dCam_run(camera);
     Hud::Collision::OnCameraRun(camera);
     Tools::Coordinates::OnCameraRun(camera);
+    Tools::Camera::OnCameraRun(camera);
     return result;
 }
 

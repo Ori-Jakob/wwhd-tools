@@ -3,6 +3,7 @@
 #include "core/hotkeys.h"
 #include "core/input.h"
 #include "core/logger.h"
+#include "core/settings.h"
 #include "libwupatch/wupatch.h"
 #include "libwwhd/libwwhd.h"
 #include "tools/coordinates.h"
@@ -255,18 +256,21 @@ bool ReadFinished(bool* ok, uint32_t* size)
     return true;
 }
 
-// The pad mode the game should end up in for the controller in the user's hands.
+// The pad mode for the chosen controller, or in Auto the one in the user's hands.
 static u32 wantedPadMode()
 {
     const u32 now = wwhd_getDisplayMode();
+    const u32 gamePad = now == WWHD_DISPLAY_MODE_TV || now == WWHD_DISPLAY_MODE_DRC
+                            ? now : WWHD_DISPLAY_MODE_TV;
+    switch (Config::g_settings.loadController) {
+    case Config::LOAD_CONTROLLER_GAMEPAD: return gamePad;
+    case Config::LOAD_CONTROLLER_PRO:     return WWHD_DISPLAY_MODE_PRO;
+    default: break;
+    }
     switch (Input::ActiveSource()) {
-    case Input::SOURCE_PRO:
-        return WWHD_DISPLAY_MODE_PRO;
-    case Input::SOURCE_GAMEPAD:
-        return now == WWHD_DISPLAY_MODE_TV || now == WWHD_DISPLAY_MODE_DRC ? now
-                                                                           : WWHD_DISPLAY_MODE_TV;
-    default:
-        return WWHD_DISPLAY_MODE_UNKNOWN;
+    case Input::SOURCE_PRO:     return WWHD_DISPLAY_MODE_PRO;
+    case Input::SOURCE_GAMEPAD: return gamePad;
+    default:                    return WWHD_DISPLAY_MODE_UNKNOWN;
     }
 }
 
@@ -591,9 +595,10 @@ static bool beginBlockLoad(const dSv_info_c* block, const char* stage, s16 point
     Notifications::ShowStickyf(kNotifyKey, Notifications::Info, "Save States",
                                "Loading %s ...", s_label);
     Logger::Log("[savestate] loading %s: stage=%s room=%d layer=%d point=%d%s, "
-                "controller source %u pad mode %d -> %d",
+                "controller choice %u source %u pad mode %d -> %d",
                 s_label, s_loading.stage, (int)room, (int)layer, (int)point,
-                s_fromTitle ? " from the title" : "", (unsigned)Input::ActiveSource(),
+                s_fromTitle ? " from the title" : "",
+                (unsigned)Config::g_settings.loadController, (unsigned)Input::ActiveSource(),
                 (int)s_padBefore, (int)s_padWanted);
     logLoadState("load begin");
     return true;
@@ -666,6 +671,12 @@ static void finishLoad()
 
     if (s_verifyPlace && off2 > kPlaceTolerance * kPlaceTolerance)
         Logger::LogWarn("[savestate] respawn missed by (%.1f,%.1f,%.1f)", dx, dy, dz);
+    const csXyz* spawnShape = daPy_getStoreShapeAngle();
+    daShip_c* ship = s_loading.hasShip ? get_daShip() : nullptr;
+    Logger::Log("[savestate] spawned facing %d (saved %d), boat %d (saved %d)%s",
+                spawnShape ? (int)spawnShape->y : -1, (int)s_loading.angle,
+                ship ? (int)daShip_getFacing(ship) : -1, (int)s_loading.shipAngle,
+                s_loading.riding ? " aboard" : "");
     if (s_verifyPlace) {
         daPy_setPosition(&s_loading.pos);
         daPy_resetFallStart(&s_loading.pos);
@@ -675,11 +686,10 @@ static void finishLoad()
         if (daPy_lk_c* link = daPy_lk_c_getPlayer())
             link->base.current.angle.y = s_loading.angle;
     }
-    if (s_loading.hasShip && !s_loading.riding) {
-        if (daShip_c* ship = get_daShip()) {
-            daShip_setPosition(ship, &s_loading.shipPos);
-            daShip_setFacing(ship, s_loading.shipAngle);
-        }
+    // Aboard, Link turns with the boat, so its pose is his facing too.
+    if (ship) {
+        daShip_setPosition(ship, &s_loading.shipPos);
+        daShip_setFacing(ship, s_loading.shipAngle);
     }
     s_camHold = s_loading.hasCamera ? kCamHoldFrames : 0;
     s_camWait = 0;
@@ -688,6 +698,11 @@ static void finishLoad()
         const bool ok = applyPadMode();
         Logger::LogWarn("[savestate] pad mode was %d after the load, wanted %d: %s",
                         (int)padAfterLoad, (int)s_padWanted, ok ? "set again" : "refused");
+        if (!ok)
+            Notifications::Show(Notifications::Warning, "Save States",
+                                s_padWanted == WWHD_DISPLAY_MODE_PRO
+                                    ? "No Pro Controller connected; kept the game's controller."
+                                    : "Could not switch the game to the GamePad.");
     }
     releaseHook();
     setStatus("Loaded %s", s_label);

@@ -78,6 +78,16 @@ static bool takeDoubleTap(ImGuiID id)
     return isDouble;
 }
 
+// A plain nav activation only grabs a slider; PreferInput is what turns it into a text box.
+static void requestTextInput(ImGuiID id)
+{
+    ImGuiContext* g = ImGui::GetCurrentContext();
+    if (!g || !id)
+        return;
+    g->NavActivateId = id;
+    g->NavActivateFlags = ImGuiActivateFlags_PreferInput;
+}
+
 static void noteNavSlider(ImGuiID id)
 {
     ImGuiContext* g = ImGui::GetCurrentContext();
@@ -187,12 +197,15 @@ bool SliderInt(const char* label, int* value, int minValue, int maxValue,
 {
     const ImGuiID id = ImGui::GetID(label);
     const bool toText = takeDoubleTap(id);
+    if (toText)
+        requestTextInput(id);
+    const bool editing = toText || ImGui::TempInputIsActive(id);
 
     bool changed = ImGui::SliderInt(label, value, minValue, maxValue, format,
-                                    toText ? 0 : ImGuiSliderFlags_NoInput);
+                                    editing ? 0 : ImGuiSliderFlags_NoInput);
     registerField(Osk::FIELD_INT);
     noteNavSlider(id);
-    if (!toText)
+    if (!editing)
         releaseNavActivation();
 
     const int step = ImGui::TempInputIsActive(id) ? 0 : sliderStep();
@@ -215,15 +228,19 @@ bool SliderFloat(const char* label, float* value, float minValue, float maxValue
     const ImGuiID id = ImGui::GetID(label);
     const bool toText = takeDoubleTap(id);
 
+    if (toText)
+        requestTextInput(id);
+    const bool editing = toText || ImGui::TempInputIsActive(id);
+
     ImGuiSliderFlags sliderFlags = (ImGuiSliderFlags)flags;
-    if (!toText)
+    if (!editing)
         sliderFlags |= ImGuiSliderFlags_NoInput;
 
     bool changed = ImGui::SliderFloat(label, value, minValue, maxValue, format,
                                       sliderFlags);
     registerField(Osk::FIELD_FLOAT);
     noteNavSlider(id);
-    if (!toText)
+    if (!editing)
         releaseNavActivation();
 
     const int step = ImGui::TempInputIsActive(id) ? 0 : sliderStep();

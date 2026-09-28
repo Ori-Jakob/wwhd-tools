@@ -22,6 +22,9 @@ bool HasContentFor(ScreenContent content, bool isTv);
 bool IsMenuOpen();
 void SetMenuOpen(bool open);
 
+// Wall-clock seconds since the previous overlay frame; ImGui's DeltaTime is a fixed 1/60.
+float FrameSeconds();
+
 void OnApplicationStart();
 void OnApplicationEnd();
 }

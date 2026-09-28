@@ -19,6 +19,7 @@ struct Field {
 
 static const Field kSettingsSchema[] = {
     WWHD_SETTING(drawnScreen,    FIELD_U32,   0.0f,   2.0f),
+    WWHD_SETTING(loadController, FIELD_U32,   0.0f,   2.0f),
     WWHD_SETTING(uiScale,        FIELD_FLOAT, 1.0f,   2.0f),
     WWHD_SETTING(hudOnGameScreen, FIELD_BOOL, 0.0f,   0.0f),
     WWHD_SETTING(hudToTv,        FIELD_BOOL,  0.0f,   0.0f),
@@ -31,6 +32,13 @@ static const Field kSettingsSchema[] = {
     WWHD_SETTING(flyCamEnabled,  FIELD_BOOL,  0.0f,   0.0f),
     WWHD_SETTING(flyCamSpeed,    FIELD_FLOAT, 5.0f, 500.0f),
     WWHD_SETTING(mssEnabled,     FIELD_BOOL,  0.0f,   0.0f),
+
+    WWHD_SETTING(modernCam,      FIELD_BOOL,  0.0f,   0.0f),
+    WWHD_SETTING(modernCamSailing, FIELD_BOOL, 0.0f,  0.0f),
+    WWHD_SETTING(camSensX,       FIELD_FLOAT, 0.25f,  3.0f),
+    WWHD_SETTING(camSensY,       FIELD_FLOAT, 0.25f,  3.0f),
+    WWHD_SETTING(cameraFov,      FIELD_FLOAT, 30.0f, 110.0f),
+    WWHD_SETTING(cameraFovAll,   FIELD_BOOL,  0.0f,   0.0f),
 
     WWHD_SETTING(zombieHoverEnabled, FIELD_BOOL, 0.0f, 0.0f),
     WWHD_SETTING(zombieHoverHeal, FIELD_BOOL,  0.0f,   0.0f),

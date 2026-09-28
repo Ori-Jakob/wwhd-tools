@@ -14,6 +14,7 @@
 #include "hud/hud_input_viewer.h"
 #include "hud/hud_zombie_hover.h"
 #include "render/renderer.h"
+#include "tools/camera.h"
 #include "tools/coordinates.h"
 #include "tools/flycam.h"
 #include "tools/mss.h"
@@ -37,6 +38,7 @@
 
 #include "imgui.h"
 
+#include <coreinit/time.h>
 #include <gx2/surface.h>
 
 namespace Ui {
@@ -44,8 +46,24 @@ namespace Overlay {
 static bool s_menuOpen = false;
 static bool s_started = false;
 static bool s_initToastShown = false;
+static OSTime s_lastFrameTime = 0;
+static float  s_frameSeconds = 0.0f;
+// A load or pause can stall frames for seconds; cap it so timed UI does not skip ahead.
+static const float kMaxFrameSeconds = 0.25f;
 
 bool IsMenuOpen() { return s_menuOpen; }
+
+float FrameSeconds() { return s_frameSeconds; }
+
+static void measureFrame()
+{
+    const OSTime now = OSGetTime();
+    float seconds = 0.0f;
+    if (s_lastFrameTime != 0 && now > s_lastFrameTime)
+        seconds = (float)OSTicksToMicroseconds(now - s_lastFrameTime) / 1000000.0f;
+    s_lastFrameTime = now;
+    s_frameSeconds = seconds > kMaxFrameSeconds ? kMaxFrameSeconds : seconds;
+}
 
 static bool overlayOwnsInput()
 {
@@ -74,6 +92,8 @@ void OnApplicationStart()
     s_started = true;
     s_initToastShown = false;
     s_menuOpen = false;
+    s_lastFrameTime = 0;
+    s_frameSeconds = 0.0f;
 
     Input::OnApplicationStart();
     Hotkeys::OnApplicationStart();
@@ -82,6 +102,7 @@ void OnApplicationStart()
     Menu::OnApplicationStart();
     Osk::OnApplicationStart();
     Tools::FlyCam::OnApplicationStart();
+    Tools::Camera::OnApplicationStart();
     Tools::Mss::OnApplicationStart();
     Tools::ZombieHover::OnApplicationStart();
     Tools::Coordinates::OnApplicationStart();
@@ -100,6 +121,7 @@ void OnApplicationEnd()
     s_started = false;
     s_menuOpen = false;
     Tools::FlyCam::OnApplicationEnd();
+    Tools::Camera::OnApplicationEnd();
     Tools::SaveStates::OnApplicationEnd();
     Renderer::ResetDeviceObjects();
     Notifications::Clear();
@@ -107,8 +129,8 @@ void OnApplicationEnd()
 
 static bool blockWanted(uint32_t held, bool touchOnWidget)
 {
-    return overlayOwnsInput() || Watermark::IsInteracting() || touchOnWidget ||
-           Hotkeys::OverlayComboHeld(held) || Tools::FlyCam::IsActive();
+    return overlayOwnsInput() || Osk::IsOpen() || Watermark::IsInteracting() ||
+           touchOnWidget || Hotkeys::OverlayComboHeld(held) || Tools::FlyCam::IsActive();
 }
 
 void OnPadSampled()
@@ -182,6 +204,7 @@ void Tick()
 
     const bool toolsActive = !ownsInput && !Rebind::IsActive();
     Tools::FlyCam::Tick(toolsActive);
+    Tools::Camera::Tick();
     const bool gameTools = toolsActive && !Tools::FlyCam::IsActive();
     Cheats::Tick(gameTools);
     Tools::SaveStates::Tick(gameTools);
@@ -218,6 +241,7 @@ bool PrepareFrame(float logicalWidth, float logicalHeight)
             return false;
     }
 
+    measureFrame();
     const float dt = 1.0f / 60.0f;
     Renderer::NewFrame(lw, lh, dt);
 
