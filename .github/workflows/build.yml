@@ -24,6 +24,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container: devkitpro/devkitppc:latest
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Check out (with submodules)
@@ -31,6 +34,9 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           submodules: recursive
+
+      - name: Trust the checkout
+        run: git config --global --add safe.directory '*'
 
       - name: Install host tools
         run: |
@@ -67,7 +73,7 @@ jobs:
           elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
           else
-            echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+            echo "version=$(git rev-parse --short=8 HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build rpl_loader.wps

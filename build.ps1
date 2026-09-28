@@ -93,7 +93,7 @@ function Invoke-Native([string]$exe, [string[]]$argv) {
 # ---------------------------------------------------------------- version --
 if (-not $Version) {
     $Version = 'dev'
-    $sha = Invoke-Native 'git' @('-C', $RepoRoot, 'rev-parse', '--short', 'HEAD')
+    $sha = Invoke-Native 'git' @('-C', $RepoRoot, 'rev-parse', '--short=8', 'HEAD')
     if ($LASTEXITCODE -eq 0 -and $sha.Trim()) { $Version = $sha.Trim() }
 }
 Write-Host "==> version $Version$(if ($DebugBuild) { ' (debug build)' })"

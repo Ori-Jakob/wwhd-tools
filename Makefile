@@ -17,7 +17,7 @@ CRT        := $(RPLLOADER)/crt
 VERSION ?=
 VERSION := $(strip $(VERSION))
 ifeq ($(VERSION),)
-VERSION := $(shell git -C "$(TOPDIR)" rev-parse --short HEAD 2>/dev/null)
+VERSION := $(shell git -C "$(TOPDIR)" rev-parse --short=8 HEAD 2>/dev/null)
 endif
 ifeq ($(strip $(VERSION)),)
 VERSION := dev

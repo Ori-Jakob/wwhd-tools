@@ -3,6 +3,7 @@
 #include "core/config.h"
 #include "core/hotkeys.h"
 #include "core/settings.h"
+#include "core/version.h"
 #include "libwwhd/libwwhd.h"
 #include "ui/notifications.h"
 #include "ui/ui_field.h"
@@ -127,6 +128,7 @@ void DrawSettings()
         Config::MarkDirty();
     }
 
+    ImGui::Text("WWHD Tools: %s", WWHD_TOOLS_VERSION);
     if (wwhd_titleId)
         ImGui::Text("Title ID: %08x%08x", (unsigned)(wwhd_titleId >> 32),
                     (unsigned)(wwhd_titleId & 0xFFFFFFFFu));
