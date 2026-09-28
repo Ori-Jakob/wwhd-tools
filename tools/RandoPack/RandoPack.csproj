@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>WwhdRandoPack</AssemblyName>
+    <RootNamespace>RandoPack</RootNamespace>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <Version>0.1.0</Version>
+    <Product>WWHD Tools Randomizer Pack</Product>
+    <Description>Matches the WWHD Tools graphics pack to a Wind Waker HD Randomizer seed in Cemu.</Description>
+  </PropertyGroup>
+
+</Project>
