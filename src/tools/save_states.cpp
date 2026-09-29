@@ -57,11 +57,15 @@ static const int   kSameLinkFrames = 120;
 static const int   kBgmFadeFrames  = 30;
 static const int   kLoadLogEvery   = 30;
 static const float kPlaceTolerance = 200.0f;
+// Slot 4 waits for the stage archive and runs dStage_InitCreate.
+static const u32   kStageSlot      = 4;
 // Slot 6 is phase_4, which runs dStage_Create and with it the room control init.
 static const u32   kPhase4Slot     = 6;
+static const int   kStageRetries   = 3;
 static const int   kCamHoldFrames  = 4;
 static const int   kCamWaitFrames  = 90;
 static const int   kLoaderHoldMax  = 600;
+static const int   kStoreHoldMax   = 3600;
 static const int   kTitleNoticeAt  = 30;
 
 static u8         s_image[sizeof(Header) + sizeof(dSv_info_c)];
@@ -77,6 +81,7 @@ static int        s_frames = 0;
 static bool       s_sawNoLink = false;
 static const void* s_oldLink = nullptr;
 static u32        s_realPhase1 = 0;
+static u32        s_realStage = 0;
 static u32        s_realPhase4 = 0;
 static bool       s_restoreZones = false;
 static int        s_camHold = 0;
@@ -85,6 +90,7 @@ static u32        s_padWanted = WWHD_DISPLAY_MODE_UNKNOWN;
 static u32        s_padBefore = WWHD_DISPLAY_MODE_UNKNOWN;
 
 static WuPatch::Handle s_hookSwap = WuPatch::kInvalidHandle;
+static WuPatch::Handle s_hookSwapStage = WuPatch::kInvalidHandle;
 static WuPatch::Handle s_hookSwap4 = WuPatch::kInvalidHandle;
 
 static volatile u32 s_installWanted = 0;
@@ -95,6 +101,12 @@ static volatile s32 s_holdFrames = 0;
 static volatile s32 s_holdPending = 0;
 static volatile s32 s_holdDeferred = 0;
 static volatile s32 s_holdOldStage = 0;
+static volatile s32 s_holdLayouts = 0;
+static volatile s32 s_holdStore = 0;
+static volatile u32 s_holdGaveUp = 0;
+static volatile u32 s_stageGuard = 0;
+static volatile s32 s_stageRequeues = 0;
+static volatile s32 s_stageStoreWait = 0;
 static volatile u32 s_padSet = 0;
 
 static OSThread       s_thread;
@@ -294,16 +306,26 @@ static int scenePhase1Hook(void* scene)
         const bool banks = !s_fromTitle || dComIfG_commonBgmBanksReady() != 0;
         // Releasing the old stage archive destroys the heaps the new one would load into.
         const bool oldStage = dComIfG_getStageRes("Stage", "stage.dzs") != nullptr;
-        if ((!wwhd_resLoaderSettled() || !banks || oldStage) && s_holdFrames < kLoaderHoldMax) {
+        // The layout thread reads through the archive store too.
+        const bool layouts = wwhd_layoutLoaderBusy() > 0;
+        // During the boot pack preload the store serves resident archives only.
+        const bool store = wwhd_resStoreBusy() != 0;
+        const bool wait = !wwhd_resLoaderSettled() || !banks || oldStage || layouts;
+        if ((wait && s_holdFrames < kLoaderHoldMax) || (store && s_holdFrames < kStoreHoldMax)) {
             if (s_holdFrames == 0) {
                 s_holdPending  = wwhd_resLoaderPending();
                 s_holdDeferred = wwhd_resLoaderDeferred();
             }
             if (oldStage)
                 s_holdOldStage = s_holdOldStage + 1;
+            if (layouts)
+                s_holdLayouts = s_holdLayouts + 1;
+            if (store)
+                s_holdStore = s_holdStore + 1;
             s_holdFrames = s_holdFrames + 1;
             return 0;
         }
+        s_holdGaveUp = (wait || store) ? 1 : 0;
         s_padSet = applyPadMode() ? 1 : 0;
         dSv_info_c* live = dComIfGs_getSaveInfo();
         if (live)
@@ -314,12 +336,46 @@ static int scenePhase1Hook(void* scene)
                 rooms[i].mZoneNo = s_loading.zoneNo[i];
         }
         s_zoneWanted = s_restoreZones ? 1 : 0;
+        s_stageGuard = 1;
         s_installWanted = 0;
         OSMemoryBarrier();
         s_installed = 1;
     }
 
     dScnPly_phase_t real = (dScnPly_phase_t)(uintptr_t)s_realPhase1;
+    return real ? real(scene) : 0;
+}
+
+// A stage archive can come back done without registering; queue it again before
+// dStage_InitCreate asserts on it.
+static int sceneStageHook(void* scene)
+{
+    if (s_stageGuard && dComIfG_syncStageRes("Stage") == 0) {
+        const char* stage = dComIfGp_getCurStageName();
+        if (!dComIfG_getStageRes("Stage", "stage.dzs")) {
+            // A retry while the store is busy would be served from resident packs again.
+            if (wwhd_resStoreBusy() != 0 && s_stageStoreWait < kStoreHoldMax) {
+                s_stageStoreWait = s_stageStoreWait + 1;
+                return 0;
+            }
+            Logger::LogWarn("[savestate] %.7s Stage archive done but not registered after %d "
+                            "retries: loader pending %d heap %08X, store busy %d last %.40s "
+                            "(waited %d frames), layouts %d",
+                            stage, (int)s_stageRequeues, (int)wwhd_resLoaderPending(),
+                            (unsigned)wwhd_resLoaderHeap(), (int)wwhd_resStoreBusy(),
+                            wwhd_resStoreReading(), (int)s_stageStoreWait,
+                            (int)wwhd_layoutLoaderBusy());
+            // ma2room loads as ma3room once its event bit is set.
+            if (s_stageRequeues < kStageRetries && strcmp(stage, "ma2room") != 0 &&
+                wwhd_resLoaderRequeue(stage, "Stage")) {
+                s_stageRequeues = s_stageRequeues + 1;
+                return 0;
+            }
+        }
+        s_stageGuard = 0;
+    }
+
+    dScnPly_phase_t real = (dScnPly_phase_t)(uintptr_t)s_realStage;
     return real ? real(scene) : 0;
 }
 
@@ -366,20 +422,33 @@ static WuPatch::Handle hookSwap()
                        (uint32_t)(uintptr_t)&scenePhase1Hook);
 }
 
+static wwhd_addr_t phaseSlotAddr(u32 slot)
+{
+    return wwhd_regionResolved ? wwhd_map->dScnPly_phaseTable + slot * 4u : 0u;
+}
+
+static WuPatch::Handle hookSwapStage()
+{
+    return declareSwap(s_hookSwapStage, phaseSlotAddr(kStageSlot),
+                       (uint32_t)(uintptr_t)&sceneStageHook);
+}
+
 static WuPatch::Handle hookSwap4()
 {
-    const wwhd_addr_t slot =
-        wwhd_regionResolved ? wwhd_map->dScnPly_phaseTable + kPhase4Slot * 4u : 0u;
-    return declareSwap(s_hookSwap4, slot, (uint32_t)(uintptr_t)&scenePhase4Hook);
+    return declareSwap(s_hookSwap4, phaseSlotAddr(kPhase4Slot),
+                       (uint32_t)(uintptr_t)&scenePhase4Hook);
 }
 
 static void releaseHook()
 {
     if (s_hookSwap != WuPatch::kInvalidHandle)
         WuPatch::Data::SetEnabled(s_hookSwap, false);
+    if (s_hookSwapStage != WuPatch::kInvalidHandle)
+        WuPatch::Data::SetEnabled(s_hookSwapStage, false);
     if (s_hookSwap4 != WuPatch::kInvalidHandle)
         WuPatch::Data::SetEnabled(s_hookSwap4, false);
     s_installWanted = 0;
+    s_stageGuard = 0;
     s_zoneWanted = 0;
     s_phase = PHASE_IDLE;
 }
@@ -391,7 +460,8 @@ static void logLoadState(const char* tag)
                 "next=%.7s enable=%d | link=%d proc=%d demo=%u | overlap=%08X busy=%d "
                 "bgm=%u bgmBusy=%d | event=%u camPlay=%u | audio stage cur=%d req=%d "
                 "track playing=%08X pending=%08X request=%d restart=%d "
-                "banks=%u/%u changed=%d/%d | loader=%d/%d pad=%d hold=%d stageRes=%d",
+                "banks=%u/%u changed=%d/%d | loader=%d/%d store=%d layouts=%d pad=%d hold=%d "
+                "stageRes=%d",
                 tag, (int)s_phase, s_frames, (int)s_installed,
                 (int)fopScn_getName(fopScnM_getStageScene()), dComIfGp_getCurStageName(),
                 dComIfGp_getNextStageName(), dComIfGp_isNextStagePending(),
@@ -406,6 +476,7 @@ static void logLoadState(const char* tag)
                 (unsigned)mDoAud_getBankSet(), (unsigned)mDoAud_getBankSet2(),
                 mDoAud_bankSetChanged(), mDoAud_bankSet2Changed(),
                 (int)wwhd_resLoaderPending(), (int)wwhd_resLoaderDeferred(),
+                (int)wwhd_resStoreBusy(), (int)wwhd_layoutLoaderBusy(),
                 (int)wwhd_getDisplayMode(), (int)s_holdFrames,
                 dComIfG_getStageRes("Stage", "stage.dzs") != nullptr);
 }
@@ -551,12 +622,16 @@ static bool beginBlockLoad(const dSv_info_c* block, const char* stage, s16 point
 
     wwhd_gptr_t* table = dScnPly_getPhaseTable();
     const WuPatch::Handle swap = hookSwap();
+    const WuPatch::Handle swapStage = hookSwapStage();
     const WuPatch::Handle swap4 = hookSwap4();
-    if (!table || swap == WuPatch::kInvalidHandle || swap4 == WuPatch::kInvalidHandle)
+    if (!table || swap == WuPatch::kInvalidHandle || swapStage == WuPatch::kInvalidHandle ||
+        swap4 == WuPatch::kInvalidHandle)
         return fail("The scene phase table is unavailable.");
     const u32 current = table[WWHD_DSCNPLY_PHASE1_SLOT];
+    const u32 currentStage = table[kStageSlot];
     const u32 current4 = table[kPhase4Slot];
     if (current == (u32)(uintptr_t)&scenePhase1Hook ||
+        currentStage == (u32)(uintptr_t)&sceneStageHook ||
         current4 == (u32)(uintptr_t)&scenePhase4Hook)
         return fail("The scene hook is still installed from the last load.");
     if (current != WWHD_TEXT(wwhd_map->dScnPly_phase1))
@@ -576,6 +651,7 @@ static bool beginBlockLoad(const dSv_info_c* block, const char* stage, s16 point
     s_label[sizeof(s_label) - 1] = '\0';
 
     s_realPhase1    = current;
+    s_realStage     = currentStage;
     s_realPhase4    = current4;
     s_restoreZones  = zoneNo != nullptr;
     s_zoneWanted    = 0;
@@ -585,6 +661,12 @@ static bool beginBlockLoad(const dSv_info_c* block, const char* stage, s16 point
     s_holdPending   = 0;
     s_holdDeferred  = 0;
     s_holdOldStage  = 0;
+    s_holdLayouts   = 0;
+    s_holdStore     = 0;
+    s_holdGaveUp    = 0;
+    s_stageGuard    = 0;
+    s_stageRequeues = 0;
+    s_stageStoreWait = 0;
     s_padSet        = 0;
     s_padBefore     = wwhd_getDisplayMode();
     s_padWanted     = wantedPadMode();
@@ -597,6 +679,7 @@ static bool beginBlockLoad(const dSv_info_c* block, const char* stage, s16 point
     s_frames        = 0;
     s_phase         = PHASE_ARM;
     WuPatch::Data::SetEnabled(swap, true);
+    WuPatch::Data::SetEnabled(swapStage, true);
     WuPatch::Data::SetEnabled(swap4, true);
 
     Notifications::ShowStickyf(kNotifyKey, Notifications::Info, "Save States",
@@ -716,12 +799,13 @@ static void finishLoad()
     Notifications::ShowKeyedTitledf(kNotifyKey, Notifications::Success, "Save States",
                                     "Loaded %s", s_label);
     Logger::Log("[savestate] loaded %s after %d frames, spawn off by %.1f, zones %s, camera %d, "
-                "pad mode %d (%s)",
+                "pad mode %d (%s), stage archive retries %d",
                 s_label, s_frames, off2 > 0.0f ? sqrtf(off2) : 0.0f,
                 !s_restoreZones ? "not saved" : s_zonesRestored ? "restored" : "MISSED",
                 (int)s_loading.hasCamera, (int)wwhd_getDisplayMode(),
                 s_padWanted == WWHD_DISPLAY_MODE_UNKNOWN ? "left alone"
-                : s_padSet ? "set at install" : "install set refused");
+                : s_padSet ? "set at install" : "install set refused",
+                (int)s_stageRequeues);
     logLoadState("after load");
 }
 
@@ -730,8 +814,10 @@ static void tickLoad()
     switch (s_phase) {
     case PHASE_ARM: {
         const WuPatch::State st = WuPatch::Data::GetState(s_hookSwap);
+        const WuPatch::State stStage = WuPatch::Data::GetState(s_hookSwapStage);
         const WuPatch::State st4 = WuPatch::Data::GetState(s_hookSwap4);
-        if (st == WuPatch::STATE_APPLIED && st4 == WuPatch::STATE_APPLIED) {
+        if (st == WuPatch::STATE_APPLIED && stStage == WuPatch::STATE_APPLIED &&
+            st4 == WuPatch::STATE_APPLIED) {
             if (s_fromTitle) {
                 if (!s_banksRequested) {
                     s_banksRequested = true;
@@ -762,10 +848,11 @@ static void tickLoad()
                                                "Save States", "Loading %s ...", s_label);
                 }
                 Logger::Log("[savestate] title start after %d frames: title state %d, "
-                            "loader pending %d deferred %d, banks %d",
+                            "loader pending %d deferred %d, banks %d, layouts %d, store %d",
                             s_frames, daTitle_isWaitingForStart(),
                             (int)wwhd_resLoaderPending(), (int)wwhd_resLoaderDeferred(),
-                            dComIfG_commonBgmBanksReady());
+                            dComIfG_commonBgmBanksReady(), (int)wwhd_layoutLoaderBusy(),
+                            (int)wwhd_resStoreBusy());
             }
             s_installWanted = 1;
             OSMemoryBarrier();
@@ -791,8 +878,9 @@ static void tickLoad()
             s_phase = PHASE_WARP;
             s_frames = 0;
         } else if (++s_frames > kArmFrames) {
-            Logger::LogError("[savestate] scene hooks not applied: phase_1 %s, phase_4 %s",
-                             WuPatch::StateName(st), WuPatch::StateName(st4));
+            Logger::LogError("[savestate] scene hooks not applied: phase_1 %s, stage %s, "
+                             "phase_4 %s", WuPatch::StateName(st), WuPatch::StateName(stStage),
+                             WuPatch::StateName(st4));
             abortLoad("The scene hook could not be installed.");
         }
         break;
@@ -806,15 +894,17 @@ static void tickLoad()
             OSMemoryBarrier();
             if (s_holdFrames > 0)
                 Logger::Log("[savestate] phase_1 held %d frames%s: loader pending %d deferred %d "
-                            "at first, banks %d, old stage archive for %d frames",
-                            (int)s_holdFrames, s_holdFrames >= kLoaderHoldMax ? " (gave up)" : "",
+                            "at first, banks %d, old stage archive for %d frames, layouts "
+                            "loading for %d frames, store busy for %d frames",
+                            (int)s_holdFrames, s_holdGaveUp ? " (gave up)" : "",
                             (int)s_holdPending, (int)s_holdDeferred,
-                            dComIfG_commonBgmBanksReady(), (int)s_holdOldStage);
+                            dComIfG_commonBgmBanksReady(), (int)s_holdOldStage,
+                            (int)s_holdLayouts, (int)s_holdStore);
             else
                 Logger::Log("[savestate] phase_1 found the loader settled");
             s_phase = PHASE_SETTLE;
             s_frames = 0;
-        } else if (++s_frames > kWarpFrames) {
+        } else if (++s_frames > kWarpFrames + s_holdFrames) {
             abortLoad("The stage never reloaded.");
         }
         break;
@@ -833,7 +923,7 @@ static void tickLoad()
                            s_frames > kSameLinkFrames;
         if (inStage && fresh)
             finishLoad();
-        else if (s_frames > kSettleFrames)
+        else if (s_frames > kSettleFrames + s_stageStoreWait)
             abortLoad("Link did not reappear in the loaded stage.");
         break;
     }
@@ -935,12 +1025,15 @@ void OnApplicationStart()
     s_installWanted = 0;
     s_installed = 0;
     s_realPhase1 = 0;
+    s_realStage = 0;
     s_realPhase4 = 0;
+    s_stageGuard = 0;
     s_zoneWanted = 0;
     s_camHold = 0;
     s_holdFrames = 0;
     s_padWanted = WWHD_DISPLAY_MODE_UNKNOWN;
     s_hookSwap = WuPatch::kInvalidHandle;
+    s_hookSwapStage = WuPatch::kInvalidHandle;
     s_hookSwap4 = WuPatch::kInvalidHandle;
     s_listValid = false;
     s_count = 0;
