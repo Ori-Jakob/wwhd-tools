@@ -273,6 +273,7 @@ void Draw(ImGuiIO& io)
         ImGui::SetNextWindowSizeConstraints(ImVec2(windowWidth, 0.0f),
                                             ImVec2(windowWidth, 10000.0f));
         if (ImGui::Begin(name, nullptr, flags)) {
+            Renderer::MarkToastList(ImGui::GetWindowDrawList());
             ImGui::SetWindowFontScale(k);
             if (slot.title[0]) {
                 ImGui::PushStyleColor(ImGuiCol_Text, accent);

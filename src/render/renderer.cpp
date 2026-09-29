@@ -206,22 +206,54 @@ static bool s_topHasContent = false;
 static bool s_padHasContent = false;
 static bool s_worldHasContent = false;
 static bool s_hudHasContent = false;
+static bool s_toastHasContent = false;
 static const ImDrawList* s_world = nullptr;
 
-static const int kMaxGameScreenLists = 8;
-static const ImDrawList* s_gameScreenLists[kMaxGameScreenLists];
-static int s_gameScreenCount = 0;
-static int s_gameScreenFrame = -1;
+// Window lists marked during the frame; a stale frame's marks count as none.
+static const int kMaxMarkedLists = 8;
+struct MarkedLists {
+    const ImDrawList* lists[kMaxMarkedLists];
+    int count;
+    int frame;
+};
+static MarkedLists s_hudLists = { {}, 0, -1 };
+static MarkedLists s_toastLists = { {}, 0, -1 };
 
-static int gameScreenListCount()
+static int markedCount(const MarkedLists& m)
 {
-    return s_gameScreenFrame == ImGui::GetFrameCount() ? s_gameScreenCount : 0;
+    return m.frame == ImGui::GetFrameCount() ? m.count : 0;
+}
+
+static void mark(MarkedLists& m, const void* drawList)
+{
+    const int frame = ImGui::GetFrameCount();
+    if (frame != m.frame) {
+        m.frame = frame;
+        m.count = 0;
+    }
+    if (drawList && m.count < kMaxMarkedLists)
+        m.lists[m.count++] = (const ImDrawList*)drawList;
+}
+
+static bool markedHaveContent(const MarkedLists& m)
+{
+    for (int i = 0; i < markedCount(m); ++i)
+        if (m.lists[i]->VtxBuffer.Size > 0)
+            return true;
+    return false;
+}
+
+static void appendMarked(const ImDrawList** out, int& count, const MarkedLists& m)
+{
+    for (int i = 0; i < markedCount(m); ++i)
+        out[count++] = m.lists[i];
 }
 
 bool HasTopLayerContent()       { return s_topHasContent; }
 bool HasGamePadOnlyContent()    { return s_padHasContent; }
 bool HasWorldContent()          { return s_worldHasContent; }
 bool HasGameScreenListContent() { return s_hudHasContent; }
+bool HasToastContent()          { return s_toastHasContent; }
 
 void FinishFrame()
 {
@@ -230,9 +262,8 @@ void FinishFrame()
     s_padHasContent = s_gamePadOnly && s_gamePadOnly->VtxBuffer.Size > 0;
     s_world = ImGui::GetBackgroundDrawList();
     s_worldHasContent = s_world && s_world->VtxBuffer.Size > 0;
-    s_hudHasContent = false;
-    for (int i = 0; i < gameScreenListCount() && !s_hudHasContent; ++i)
-        s_hudHasContent = s_gameScreenLists[i]->VtxBuffer.Size > 0;
+    s_hudHasContent = markedHaveContent(s_hudLists);
+    s_toastHasContent = markedHaveContent(s_toastLists);
 
     ImGui::Render();
     ImDrawData* drawData = ImGui::GetDrawData();
@@ -288,17 +319,16 @@ void SetGamePadOnlyList(const void* drawList)
 
 void MarkGameScreenOnly(const void* drawList)
 {
-    const int frame = ImGui::GetFrameCount();
-    if (frame != s_gameScreenFrame) {
-        s_gameScreenFrame = frame;
-        s_gameScreenCount = 0;
-    }
-    if (drawList && s_gameScreenCount < kMaxGameScreenLists)
-        s_gameScreenLists[s_gameScreenCount++] = (const ImDrawList*)drawList;
+    mark(s_hudLists, drawList);
 }
 
-// The background list is the world layer; marked HUD lists are dropped off the non-game screen.
-void DrawPrepared(GX2ColorBuffer* target, bool withWorldLayer, bool withHud)
+void MarkToastList(const void* drawList)
+{
+    mark(s_toastLists, drawList);
+}
+
+// The world layer and the toasts belong to the game screen; marked HUD lists follow withHud.
+void DrawPrepared(GX2ColorBuffer* target, bool gameScreen, bool withHud)
 {
     ImDrawData* drawData = bindTarget(target);
     static int s_logged = 0;
@@ -307,18 +337,19 @@ void DrawPrepared(GX2ColorBuffer* target, bool withWorldLayer, bool withHud)
         Logger::Log("DrawPrepared target=%p %ux%u bound=%d world=%d hud=%d", (void*)target,
                     target ? (unsigned)target->surface.width : 0u,
                     target ? (unsigned)target->surface.height : 0u,
-                    (int)(drawData != nullptr), (int)withWorldLayer, (int)withHud);
+                    (int)(drawData != nullptr), (int)gameScreen, (int)withHud);
     }
     if (!drawData)
         return;
-    const ImDrawList* exclude[2 + kMaxGameScreenLists];
+    const ImDrawList* exclude[2 + 2 * kMaxMarkedLists];
     int count = 0;
     exclude[count++] = s_gamePadOnly;
-    if (!withWorldLayer)
+    if (!gameScreen) {
         exclude[count++] = s_world;
+        appendMarked(exclude, count, s_toastLists);
+    }
     if (!withHud)
-        for (int i = 0; i < gameScreenListCount(); ++i)
-            exclude[count++] = s_gameScreenLists[i];
+        appendMarked(exclude, count, s_hudLists);
     ImGui_ImplGX2_RenderDrawData(drawData, nullptr, 0, exclude, count);
 }
 
@@ -327,12 +358,12 @@ void DrawGameLayers(GX2ColorBuffer* target, bool withHud)
     ImDrawData* drawData = bindTarget(target);
     if (!drawData)
         return;
-    const ImDrawList* only[1 + kMaxGameScreenLists];
+    const ImDrawList* only[1 + 2 * kMaxMarkedLists];
     int count = 0;
     only[count++] = s_world;
     if (withHud)
-        for (int i = 0; i < gameScreenListCount(); ++i)
-            only[count++] = s_gameScreenLists[i];
+        appendMarked(only, count, s_hudLists);
+    appendMarked(only, count, s_toastLists);
     ImGui_ImplGX2_RenderDrawData(drawData, only, count, nullptr, 0);
 }
 

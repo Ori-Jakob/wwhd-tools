@@ -192,7 +192,7 @@ bool HasContentFor(ScreenContent content, bool isTv)
     if (content == SCREEN_ALL)
         return true;
     if (content == SCREEN_GAME)
-        return Renderer::HasWorldContent() ||
+        return Renderer::HasWorldContent() || Renderer::HasToastContent() ||
                (Config::g_settings.hudToTv && Renderer::HasGameScreenListContent());
     return Renderer::HasTopLayerContent() ||
            (!isTv && Renderer::HasGamePadOnlyContent());

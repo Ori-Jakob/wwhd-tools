@@ -77,6 +77,7 @@ void Draw(ImGuiIO& io)
         ImGuiWindowFlags_NoSavedSettings;
 
     if (ImGui::Begin("##wwhd_init_toast", nullptr, flags)) {
+        Renderer::MarkToastList(ImGui::GetWindowDrawList());
         ImGui::SetWindowFontScale(k);
 
         if (logo) {
