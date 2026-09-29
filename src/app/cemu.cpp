@@ -1,6 +1,8 @@
 #include "app/cemu.h"
 #include "app/present.h"
+#include "cheats/cheat_equipment.h"
 #include "cheats/cheat_movement.h"
+#include "cheats/cheat_sailing.h"
 #include "cheats/cheat_status.h"
 #include "cheats/cheat_text.h"
 #include "core/frame_stats.h"
@@ -405,6 +407,7 @@ struct PackBlock {
     uint32_t modeStats[48];
     uint32_t version;
     uint32_t copyStub;
+    uint32_t modFlags;   // version 3: switches for the pack's code patches
 };
 
 bool s_drawSitesDone = false;
@@ -458,6 +461,14 @@ uint32_t retargetBranches(uint32_t target, uint32_t stub,
         ICInvalidateRange(words, textSize);
     }
     return patched;
+}
+
+// The pack's code patches read these bits; Cemu does not pick up text written at run time.
+void publishModFlags(void* blockPtr)
+{
+    PackBlock* block = (PackBlock*)blockPtr;
+    if (block && block->version >= 3)
+        block->modFlags = Cheats::Equipment::PackFlags();
 }
 
 void tryPatchDrawSites(void* blockPtr)
@@ -715,6 +726,7 @@ RPL_EXPORT uint32_t rpl_cemu_entry(uint32_t reason, void* a, void* b, void* c)
     switch (reason) {
     case RPL_CEMU_FRAME:
         App::Cemu::tryPatchDrawSites(a);
+        App::Cemu::publishModFlags(a);
         FrameStats::TakePackDraws(a ? (uint8_t*)a + 16 : nullptr);
         App::Cemu::noteFrameReads();
         App::Present::OnGameFrame();
@@ -741,6 +753,8 @@ RPL_EXPORT uint32_t rpl_cemu_entry(uint32_t reason, void* a, void* b, void* c)
 
     case RPL_CEMU_EXEC_BEGIN:
         Cheats::Text::OnFrameEarly();
+        Cheats::Equipment::OnFrameEarly();
+        Cheats::Sailing::OnFrameEarly();
         Tools::FlyCam::OnFrameEarly();
         FrameStats::OnExecuteBegin();
         return 1;
@@ -792,6 +806,7 @@ RPL_EXPORT uint32_t rpl_cemu_entry(uint32_t reason, void* a, void* b, void* c)
 
     case RPL_CEMU_PROC_MOVE:
         Cheats::Movement::OnMoveProc(a);
+        Cheats::Equipment::OnMoveProc(a);
         return 1;
 
     case RPL_CEMU_PROC_CRAWL:

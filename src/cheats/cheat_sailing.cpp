@@ -23,6 +23,9 @@ static bool s_boost = false;
 static int  s_boostMultiplier = 3;
 static int s_sailApplied = 0;
 static int  s_windDirection = WIND_DIR_DEFAULT;
+static bool s_freeTurning = false;
+static float s_turnStrength = TURN_STRENGTH_MIN;
+static f32  s_turnMaxWritten = WWHD_SHIP_TURN_MAX_STOCK;
 static bool s_windForced = false;
 static u8   s_windAngleOnSaved = 0;
 
@@ -87,6 +90,29 @@ const char* WindDirectionName(int dir)
         dir = WIND_DIR_DEFAULT;
     return kWindNames[dir];
 }
+bool FreeTurningEnabled() { return s_freeTurning; }
+void SetFreeTurningEnabled(bool enabled) { s_freeTurning = enabled; }
+float TurnStrength() { return s_turnStrength; }
+
+void SetTurnStrength(float strength)
+{
+    if (strength < TURN_STRENGTH_MIN) strength = TURN_STRENGTH_MIN;
+    if (strength > TURN_STRENGTH_MAX) strength = TURN_STRENGTH_MAX;
+    s_turnStrength = strength;
+}
+
+// Only the stock value or ours is overwritten, so a wrong address is left alone.
+static void applyTurnMax()
+{
+    f32* turnMax = daShip_getTurnMaxPtr();
+    if (!turnMax)
+        return;
+    const f32 want = WWHD_SHIP_TURN_MAX_STOCK * s_turnStrength;
+    if (*turnMax != want && (*turnMax == WWHD_SHIP_TURN_MAX_STOCK || *turnMax == s_turnMaxWritten))
+        *turnMax = want;
+    s_turnMaxWritten = want;
+}
+
 bool BoostEnabled() { return s_boost; }
 void SetBoostEnabled(bool enabled) { s_boost = enabled; }
 int  BoostMultiplier() { return s_boostMultiplier; }
@@ -128,6 +154,7 @@ void TeleportLinkToBoat()
 
 void Tick(bool acceptInput)
 {
+    applyTurnMax();
     if (!acceptInput)
         applySailSpeed(0);
 
@@ -159,9 +186,22 @@ void Tick(bool acceptInput)
         ship->base.speed.y = kMoonJumpVelocity;
 }
 
+// The execute counts the boost down before the procedure turns, so any value past 15 turns at full rate.
+void OnFrameEarly()
+{
+    if (!s_freeTurning || !daPy_isRidingShip())
+        return;
+    s16* boost = daShip_getTurnBoost(get_daShip());
+    if (boost && *boost < WWHD_SHIP_TURN_BOOST_FULL)
+        *boost = WWHD_SHIP_TURN_BOOST_FULL;
+}
+
 void ResetToDefaults()
 {
     s_moonJump = false;
+    s_freeTurning = false;
+    s_turnStrength = TURN_STRENGTH_MIN;
+    applyTurnMax();
     s_autoWind = false;
     s_windDirection = WIND_DIR_DEFAULT;
     applyWind(false, 0);

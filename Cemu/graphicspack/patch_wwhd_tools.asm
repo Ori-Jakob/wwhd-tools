@@ -25,8 +25,10 @@ _mode_stats:
 .int 0, 0, 0, 0, 0, 0, 0, 0
 .int 0, 0, 0, 0, 0, 0, 0, 0
 _pk_version:
-.int 2
+.int 3
 _pk_copy_stub:
+.int 0
+_pk_mod_flags:
 .int 0
 
 _rpl_state:
@@ -872,6 +874,19 @@ gx2depth_real:
     addi  r1, r1, 0x30
     blr
 
+; Magic Armor rupee cost (mulli r0,r0,0x14): r12 is free here and cr0 is set again after
+armorcost_hook:
+    lis   r12, _pk_mod_flags@ha
+    lwz   r12, _pk_mod_flags@l(r12)
+    andi. r12, r12, 1
+    bne   armorcost_free
+    mulli r0, r0, 0x14
+    b     _armorCost_rest
+
+armorcost_free:
+    li    r0, 0
+    b     _armorCost_rest
+
 0x0200E6EC = b   counter_hook
 0x0200E558 = b   ccsmove_hook
 0x02035274 = bla context_hook
@@ -889,6 +904,7 @@ moduleMatches = 0x475bd29f
 0x024198D8 = _daPy_procMove_rest:
 0x0242C810 = _daPy_procCrawl_rest:
 0x0242F710 = _daPy_procSwim_rest:
+0x023F4D20 = _armorCost_rest:
 
 0x025D42EC = b   execute_hook
 0x026FF5AC = b   msgbox_hook
@@ -900,6 +916,7 @@ moduleMatches = 0x475bd29f
 0x024198D4 = b   procmove_hook
 0x0242C80C = b   proccrawl_hook
 0x0242F70C = b   procswim_hook
+0x023F4D1C = b   armorcost_hook
 
 0x027510A4 = bla copy_hook
 0x027B9938 = bla copy_hook
@@ -938,6 +955,7 @@ moduleMatches = 0xb7e748de
 0x024198DC = _daPy_procMove_rest:
 0x0242C814 = _daPy_procCrawl_rest:
 0x0242F714 = _daPy_procSwim_rest:
+0x023F4D24 = _armorCost_rest:
 
 0x025D42AC = b   execute_hook
 0x026FFE68 = b   msgbox_hook
@@ -949,6 +967,7 @@ moduleMatches = 0xb7e748de
 0x024198D8 = b   procmove_hook
 0x0242C810 = b   proccrawl_hook
 0x0242F710 = b   procswim_hook
+0x023F4D20 = b   armorcost_hook
 
 0x02751960 = bla copy_hook
 0x027BA1F8 = bla copy_hook

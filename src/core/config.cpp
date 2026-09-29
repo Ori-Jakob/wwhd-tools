@@ -1,5 +1,6 @@
 #include "core/config.h"
 
+#include "cheats/cheat_equipment.h"
 #include "cheats/cheat_movement.h"
 #include "cheats/cheat_sailing.h"
 #include "cheats/cheat_status.h"
@@ -278,6 +279,22 @@ static void loadCheats(cJSON* root)
               (float)Sailing::BOOST_MULTIPLIER_MAX);
     Sailing::SetBoostMultiplier((int)boatMul);
 
+    bool freeTurning = Sailing::FreeTurningEnabled();
+    readBool(root, "cheatBoatFreeTurning", &freeTurning);
+    Sailing::SetFreeTurningEnabled(freeTurning);
+
+    float turnStrength = Sailing::TurnStrength();
+    readFloat(root, "cheatBoatTurnStrength", &turnStrength,
+              Sailing::TURN_STRENGTH_MIN, Sailing::TURN_STRENGTH_MAX);
+    Sailing::SetTurnStrength(turnStrength);
+
+    for (int i = 0; i < Equipment::MOD_COUNT; ++i) {
+        const Equipment::Mod mod = (Equipment::Mod)i;
+        bool on = Equipment::IsEnabled(mod);
+        readBool(root, Equipment::ConfigKey(mod), &on);
+        Equipment::SetEnabled(mod, on);
+    }
+
     bool textAdvance = Text::AutoAdvanceEnabled();
     readBool(root, "cheatTextAutoAdvance", &textAdvance);
     Text::SetAutoAdvanceEnabled(textAdvance);
@@ -306,6 +323,12 @@ static void saveCheats(cJSON* root)
     cJSON_AddNumberToObject(root, "cheatWindDirection", Sailing::WindDirection());
     cJSON_AddBoolToObject  (root, "cheatBoatBoost",      Sailing::BoostEnabled());
     cJSON_AddNumberToObject(root, "cheatBoatMultiplier", Sailing::BoostMultiplier());
+    cJSON_AddBoolToObject  (root, "cheatBoatFreeTurning", Sailing::FreeTurningEnabled());
+    cJSON_AddNumberToObject(root, "cheatBoatTurnStrength", (double)Sailing::TurnStrength());
+    for (int i = 0; i < Equipment::MOD_COUNT; ++i) {
+        const Equipment::Mod mod = (Equipment::Mod)i;
+        cJSON_AddBoolToObject(root, Equipment::ConfigKey(mod), Equipment::IsEnabled(mod));
+    }
     cJSON_AddBoolToObject  (root, "cheatTextAutoAdvance", Text::AutoAdvanceEnabled());
 }
 

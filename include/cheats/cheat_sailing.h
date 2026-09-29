@@ -34,9 +34,19 @@ void SetBoostMultiplier(int multiplier);
 static const int BOOST_MULTIPLIER_MIN = 1;
 static const int BOOST_MULTIPLIER_MAX = 10;
 
+bool FreeTurningEnabled();
+void SetFreeTurningEnabled(bool enabled);
+
+float TurnStrength();
+void  SetTurnStrength(float strength);
+
+static const float TURN_STRENGTH_MIN = 1.0f;
+static const float TURN_STRENGTH_MAX = 4.0f;
+
 void TeleportLinkToBoat();
 
 void Tick(bool acceptInput);
+void OnFrameEarly();
 void ResetToDefaults();
 }
 }

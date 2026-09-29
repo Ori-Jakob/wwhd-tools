@@ -159,6 +159,15 @@ void DrawStatusTab()
         dSv_refillRupees();
         dMeter_setRupeeDisplay(dMeter_searchByProc(), dSv_getRupee());
     }
+
+    ImGui::SeparatorText("Skills");
+    bool spin = dComIfGs_isEventBit(WWHD_EVFLAG_HURRICANE_SPIN) != 0;
+    if (ImGui::Checkbox("Hurricane Spin", &spin)) {
+        if (spin)
+            dComIfGs_onEventBit(WWHD_EVFLAG_HURRICANE_SPIN);
+        else
+            dComIfGs_offEventBit(WWHD_EVFLAG_HURRICANE_SPIN);
+    }
 }
 }
 }

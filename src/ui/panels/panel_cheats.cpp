@@ -1,5 +1,6 @@
 #include "ui/panels.h"
 
+#include "cheats/cheat_equipment.h"
 #include "cheats/cheat_movement.h"
 #include "cheats/cheat_sailing.h"
 #include "cheats/cheat_status.h"
@@ -15,6 +16,8 @@
 #include "ui/ui_hotkey.h"
 
 #include "imgui.h"
+
+#include <stdio.h>
 
 namespace Ui {
 namespace Panels {
@@ -352,6 +355,67 @@ static bool drawStorageOptions(const Control::Descriptor*, Control::Surface)
     return false;
 }
 
+static const char* const kEquipTips[Cheats::Equipment::MOD_COUNT] = {
+    "Bombs wait until you press the hotkey.",
+    "Place more than three bombs at once.",
+    "Longer range, and a faster shot, return and pull.",
+    "Taking hits no longer costs rupees.",
+    "Twice the speed and range.",
+    "Fire, Ice and Light Arrows reload as fast as normal arrows.",
+    "Twice the reach.",
+    "Climb ropes twice as fast.",
+    "Walk at normal speed in the Iron Boots.",
+    "Use items and the sword anywhere, even where their icons are greyed out.",
+    "Charges almost instantly.",
+    "Works with an empty magic meter.",
+};
+
+static bool drawEquipment(const Control::Descriptor* d, Control::Surface)
+{
+    namespace Eq = Cheats::Equipment;
+    const Eq::Mod mod = (Eq::Mod)d->token;
+    bool enabled = Eq::IsEnabled(mod);
+    const bool changed = ImGui::Checkbox(d->name, &enabled);
+    if (changed) {
+        Eq::SetEnabled(mod, enabled);
+        Config::MarkDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", kEquipTips[mod]);
+    if (mod == Eq::MOD_REMOTE_BOMBS) {
+        ImGui::SameLine(0.0f, 0.0f);
+        Hotkey::DrawText(Hotkeys::Get(Hotkeys::HOTKEY_DETONATE_BOMBS), " (", ")", true);
+    }
+    return changed;
+}
+
+static bool drawBoatTurning(const Control::Descriptor* d, Control::Surface)
+{
+    bool enabled = Cheats::Sailing::FreeTurningEnabled();
+    const bool changed = ImGui::Checkbox(d->name, &enabled);
+    if (changed) {
+        Cheats::Sailing::SetFreeTurningEnabled(enabled);
+        Config::MarkDirty();
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Turn as sharply at full speed as when slow.");
+    return changed;
+}
+
+static bool drawTurnStrength(const Control::Descriptor* d, Control::Surface)
+{
+    float strength = Cheats::Sailing::TurnStrength();
+    ImGui::SetNextItemWidth(kSliderWidth);
+    const bool changed = Field::SliderFloat(d->name, &strength,
+                                            Cheats::Sailing::TURN_STRENGTH_MIN,
+                                            Cheats::Sailing::TURN_STRENGTH_MAX, "%.1fx");
+    if (changed) {
+        Cheats::Sailing::SetTurnStrength(strength);
+        Config::MarkDirty();
+    }
+    return changed;
+}
+
 void RegisterCheatControls()
 {
     static bool registered = false;
@@ -365,6 +429,7 @@ void RegisterCheatControls()
     static const char kQolSailPath[] = "Mods / QoL / Sailing";
     static const char kQolTextPath[] = "Mods / QoL / Text";
     static const char kGlitchPath[]  = "Mods / Glitches";
+    static const char kEquipPath[]   = "Mods / Equipment";
 
     for (int i = 0; i < Cheats::Status::PIN_COUNT; ++i) {
         static const char* const kIds[Cheats::Status::PIN_COUNT] = {
@@ -419,6 +484,58 @@ void RegisterCheatControls()
     Control::Descriptor storage = { "cheat.storage", "Storage", kGlitchPath,
                                     drawStorage, drawStorageOptions, nullptr, 0 };
     Control::Register(storage);
+
+    Control::Descriptor freeTurn = { "cheat.boat_free_turning", "No turning limit at speed",
+                                     kQolSailPath, drawBoatTurning, nullptr, nullptr, 0 };
+    Control::Register(freeTurn);
+
+    Control::Descriptor turnStrength = { "cheat.boat_turn_strength", "Turn strength",
+                                         kQolSailPath, drawTurnStrength, nullptr, nullptr, 0 };
+    Control::Register(turnStrength);
+
+    static char s_equipIds[Cheats::Equipment::MOD_COUNT][32];
+    for (int i = 0; i < Cheats::Equipment::MOD_COUNT; ++i) {
+        const Cheats::Equipment::Mod mod = (Cheats::Equipment::Mod)i;
+        snprintf(s_equipIds[i], sizeof(s_equipIds[i]), "equip.%s",
+                 Cheats::Equipment::ConfigKey(mod));
+        Control::Descriptor d = { s_equipIds[i], Cheats::Equipment::Name(mod), kEquipPath,
+                                  drawEquipment, nullptr, nullptr, i };
+        Control::Register(d);
+    }
+}
+
+static void drawEquip(Cheats::Equipment::Mod mod)
+{
+    char id[32];
+    snprintf(id, sizeof(id), "equip.%s", Cheats::Equipment::ConfigKey(mod));
+    Control::Draw(id, Control::SURFACE_MENU);
+}
+
+static void drawEquipmentSection()
+{
+    using namespace Cheats::Equipment;
+    drawEquip(MOD_REMOTE_BOMBS);
+    drawEquip(MOD_NO_BOMB_LIMIT);
+
+    ImGui::Separator();
+    drawEquip(MOD_SUPER_HOOKSHOT);
+    drawEquip(MOD_LONG_GRAPPLE);
+    drawEquip(MOD_FAST_ROPE_CLIMB);
+
+    ImGui::Separator();
+    drawEquip(MOD_FAST_BOOMERANG);
+    drawEquip(MOD_QUICK_MAGIC_ARROWS);
+
+    ImGui::Separator();
+    drawEquip(MOD_FREE_MAGIC_ARMOR);
+    drawEquip(MOD_FAST_IRON_BOOTS);
+
+    ImGui::Separator();
+    drawEquip(MOD_QUICK_SPIN);
+    drawEquip(MOD_FREE_SPIN);
+
+    ImGui::Separator();
+    drawEquip(MOD_UNRESTRICTED_ITEMS);
 }
 
 static void drawCheatsSection()
@@ -448,6 +565,8 @@ static void drawGlitchesSection()
 static void drawQolSection()
 {
     Control::Draw("cheat.auto_wind",        Control::SURFACE_MENU);
+    Control::Draw("cheat.boat_free_turning", Control::SURFACE_MENU);
+    Control::Draw("cheat.boat_turn_strength", Control::SURFACE_MENU);
     Control::Draw("cheat.teleport_to_boat", Control::SURFACE_MENU);
     ImGui::TextDisabled("%s", daShip_isAlive() ? "Boat is spawned."
                                                : "No boat in this area.");
@@ -458,9 +577,10 @@ static void drawQolSection()
 
 void DrawMods()
 {
-    if (ImGui::BeginMenu("Cheats"))   { drawCheatsSection();   ImGui::EndMenu(); }
-    if (ImGui::BeginMenu("Glitches")) { drawGlitchesSection(); ImGui::EndMenu(); }
-    if (ImGui::BeginMenu("QoL"))      { drawQolSection();      ImGui::EndMenu(); }
+    if (ImGui::BeginMenu("Cheats"))    { drawCheatsSection();    ImGui::EndMenu(); }
+    if (ImGui::BeginMenu("Equipment")) { drawEquipmentSection(); ImGui::EndMenu(); }
+    if (ImGui::BeginMenu("Glitches"))  { drawGlitchesSection();  ImGui::EndMenu(); }
+    if (ImGui::BeginMenu("QoL"))       { drawQolSection();       ImGui::EndMenu(); }
 
     ImGui::Separator();
     if (ImGui::Button("Turn all mods off")) {

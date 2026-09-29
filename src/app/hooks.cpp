@@ -1,7 +1,9 @@
 #include "app/hooks.h"
 #include "app/cemu.h"
 #include "app/present.h"
+#include "cheats/cheat_equipment.h"
 #include "cheats/cheat_movement.h"
+#include "cheats/cheat_sailing.h"
 #include "cheats/cheat_status.h"
 #include "cheats/cheat_text.h"
 #include "core/frame_stats.h"
@@ -79,6 +81,8 @@ RPL_DECL_REPLACE(void, dMsgBox_setInput, dMsgBox_c* box)
 RPL_DECL_REPLACE(void, fapGm_Execute, void)
 {
     Cheats::Text::OnFrameEarly();
+    Cheats::Equipment::OnFrameEarly();
+    Cheats::Sailing::OnFrameEarly();
     Tools::FlyCam::OnFrameEarly();
     FrameStats::OnExecuteBegin();
     real_fapGm_Execute();
@@ -89,6 +93,7 @@ RPL_DECL_REPLACE(uint32_t, daPy_procMove, void* self)
 {
     const uint32_t result = real_daPy_procMove(self);
     Cheats::Movement::OnMoveProc(self);
+    Cheats::Equipment::OnMoveProc(self);
     return result;
 }
 
@@ -165,10 +170,21 @@ static RplHook s_dynamicHooks[] = {
     RPL_REPLACE(dCcMassS_Chk,     0u, 0x9421FF60u, RPL_HOOK_OPTIONAL),
 };
 
+static const RplHost* s_host = nullptr;
+
+bool SetCodePatch(const RplHook* hook, bool on)
+{
+    if (!hook || !s_host || g_underCemu)
+        return false;
+    const int rc = on ? s_host->addHook(s_host, hook) : s_host->removeHook(s_host, hook);
+    return rc >= 0;
+}
+
 bool RegisterDynamicHooks(const RplHost* host)
 {
     if (!host || !wwhd_regionResolved)
         return false;
+    s_host = host;
 
     if (g_underCemu) {
         host->log(host, RPL_LOG_INFO,

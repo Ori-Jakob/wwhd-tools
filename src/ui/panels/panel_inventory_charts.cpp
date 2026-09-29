@@ -223,6 +223,27 @@ void DrawChartsTab()
 
 void DrawGalleryTab()
 {
+    // The sea's bits move between the live and saved copies on a stage change.
+    ImGui::BeginDisabled(dComIfGp_isNextStagePending() != 0);
+    bool open = dSv_isGalleryHatchOpen() != 0;
+    if (ImGui::Checkbox("Vault open", &open))
+        dSv_setGalleryHatchOpen(open);
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Opens the hatch on the islet near Forest Haven.");
+    ImGui::SameLine();
+    bool member = dComIfGs_isEventBit(WWHD_EVFLAG_GALLERY_MEMBER) != 0;
+    if (ImGui::Checkbox("Membership", &member)) {
+        if (member) {
+            dComIfGs_onEventBit(WWHD_EVFLAG_GALLERY_MEMBER);
+            dComIfGs_onEventBit(WWHD_EVFLAG_CARLOV_INTRO);
+        } else {
+            dComIfGs_offEventBit(WWHD_EVFLAG_GALLERY_MEMBER);
+        }
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Lets you through the gallery door.");
+
     if (ImGui::Button("Own all figurines")) {
         for (int no = 0; no < WWHD_FIGURE_MAX; ++no)
             dSv_setFigure(no, 1);

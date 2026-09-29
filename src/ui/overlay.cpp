@@ -1,5 +1,6 @@
 #include "ui/overlay.h"
 
+#include "cheats/cheat_equipment.h"
 #include "cheats/cheats.h"
 #include "core/config.h"
 #include "core/frame_stats.h"
@@ -123,6 +124,7 @@ void OnApplicationStart()
     Menu::OnApplicationStart();
     Osk::OnApplicationStart();
     Tools::FlyCam::OnApplicationStart();
+    Cheats::Equipment::OnApplicationStart();
     Tools::Camera::OnApplicationStart();
     Tools::Mss::OnApplicationStart();
     Tools::ZombieHover::OnApplicationStart();

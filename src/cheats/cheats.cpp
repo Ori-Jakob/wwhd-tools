@@ -1,5 +1,6 @@
 #include "cheats/cheats.h"
 
+#include "cheats/cheat_equipment.h"
 #include "cheats/cheat_movement.h"
 #include "cheats/cheat_sailing.h"
 #include "cheats/cheat_status.h"
@@ -10,6 +11,7 @@ namespace Cheats {
 void Tick(bool acceptInput)
 {
     Status::Tick();
+    Equipment::Tick(acceptInput);
     Movement::Tick(acceptInput);
     Sailing::Tick(acceptInput);
     Storage::Tick(acceptInput);
@@ -19,6 +21,7 @@ void Tick(bool acceptInput)
 void ResetToDefaults()
 {
     Status::ResetToDefaults();
+    Equipment::ResetToDefaults();
     Movement::ResetToDefaults();
     Sailing::ResetToDefaults();
     Storage::ResetToDefaults();

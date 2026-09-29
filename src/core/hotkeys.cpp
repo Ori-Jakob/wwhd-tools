@@ -70,6 +70,8 @@ static const Entry kEntries[HOTKEY_COUNT] = {
       Input::BTN_ZR | Input::BTN_LEFT,                               false, SCOPE_GLOBAL },
     { "Load coordinates", nullptr,    "coordLoadCombo",
       Input::BTN_ZR | Input::BTN_RIGHT,                              false, SCOPE_GLOBAL },
+    { "Detonate bombs",   "Equipment", "detonateBombsCombo",
+      Input::BTN_L,                                                  false, SCOPE_GLOBAL },
 };
 
 static uint32_t s_bindings[HOTKEY_COUNT];
