@@ -358,13 +358,13 @@ static bool drawStorageOptions(const Control::Descriptor*, Control::Surface)
 static const char* const kEquipTips[Cheats::Equipment::MOD_COUNT] = {
     "Bombs wait until you press the hotkey.",
     "Place more than three bombs at once.",
-    "Longer range, and a faster shot, return and pull.",
+    "Grabs any surface, with more range and speed.",
     "Taking hits no longer costs rupees.",
-    "Twice the speed and range.",
+    "Faster and farther throws.",
     "Fire, Ice and Light Arrows reload as fast as normal arrows.",
-    "Twice the reach.",
-    "Climb ropes twice as fast.",
-    "Walk at normal speed in the Iron Boots.",
+    "Latch onto grapple points from farther away.",
+    "Climb up and down ropes faster.",
+    "Walk and run normally in the Iron Boots.",
     "Use items and the sword anywhere, even where their icons are greyed out.",
     "Charges almost instantly.",
     "Works with an empty magic meter.",
@@ -386,6 +386,33 @@ static bool drawEquipment(const Control::Descriptor* d, Control::Surface)
         ImGui::SameLine(0.0f, 0.0f);
         Hotkey::DrawText(Hotkeys::Get(Hotkeys::HOTKEY_DETONATE_BOMBS), " (", ")", true);
     }
+    return changed;
+}
+
+static bool drawEquipmentLevels(const Control::Descriptor* d, Control::Surface)
+{
+    namespace Eq = Cheats::Equipment;
+    const Eq::Mod mod = (Eq::Mod)d->token;
+    if (!Eq::IsEnabled(mod))
+        return false;
+    bool changed = false;
+    ImGui::Indent();
+    for (int i = 0; i < Eq::LEVEL_COUNT; ++i) {
+        const Eq::Level level = (Eq::Level)i;
+        if (Eq::LevelMod(level) != mod)
+            continue;
+        int value = Eq::GetLevel(level);
+        char label[48];
+        snprintf(label, sizeof(label), "%s##%s", Eq::LevelName(level), Eq::LevelKey(level));
+        ImGui::SetNextItemWidth(kSliderWidth);
+        if (Field::SliderInt(label, &value, Eq::LevelMin(level), Eq::LevelMax(level), "%dx")) {
+            Eq::SetLevel(level, value);
+            changed = true;
+        }
+    }
+    ImGui::Unindent();
+    if (changed)
+        Config::MarkDirty();
     return changed;
 }
 
@@ -498,8 +525,12 @@ void RegisterCheatControls()
         const Cheats::Equipment::Mod mod = (Cheats::Equipment::Mod)i;
         snprintf(s_equipIds[i], sizeof(s_equipIds[i]), "equip.%s",
                  Cheats::Equipment::ConfigKey(mod));
+        bool hasLevels = false;
+        for (int l = 0; l < Cheats::Equipment::LEVEL_COUNT; ++l)
+            hasLevels |= Cheats::Equipment::LevelMod((Cheats::Equipment::Level)l) == mod;
         Control::Descriptor d = { s_equipIds[i], Cheats::Equipment::Name(mod), kEquipPath,
-                                  drawEquipment, nullptr, nullptr, i };
+                                  drawEquipment, hasLevels ? drawEquipmentLevels : nullptr,
+                                  nullptr, i };
         Control::Register(d);
     }
 }

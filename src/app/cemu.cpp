@@ -38,6 +38,9 @@ RPL_EXPORT const RplManifest* rpl_manifest();
 
 namespace App {
 bool g_underCemu = false;
+static uint32_t s_packVersion = 0;
+
+uint32_t PackVersion() { return s_packVersion; }
 
 namespace Cemu {
 namespace {
@@ -231,6 +234,7 @@ int hostAddHook(const RplHost*, const RplHook* h)
     case RPL_SHAPE_JUMP:    d.shape = WuPatch::SHAPE_JUMP;    break;
     case RPL_SHAPE_CALL:    d.shape = WuPatch::SHAPE_CALL;    break;
     case RPL_SHAPE_REWRITE: d.shape = WuPatch::SHAPE_REWRITE; break;
+    case RPL_SHAPE_CONTEXT: d.shape = WuPatch::SHAPE_CONTEXT; break;
     default:                return -3;
     }
 
@@ -467,7 +471,10 @@ uint32_t retargetBranches(uint32_t target, uint32_t stub,
 void publishModFlags(void* blockPtr)
 {
     PackBlock* block = (PackBlock*)blockPtr;
-    if (block && block->version >= 3)
+    if (!block)
+        return;
+    s_packVersion = block->version;
+    if (block->version >= 3)
         block->modFlags = Cheats::Equipment::PackFlags();
 }
 
@@ -806,7 +813,6 @@ RPL_EXPORT uint32_t rpl_cemu_entry(uint32_t reason, void* a, void* b, void* c)
 
     case RPL_CEMU_PROC_MOVE:
         Cheats::Movement::OnMoveProc(a);
-        Cheats::Equipment::OnMoveProc(a);
         return 1;
 
     case RPL_CEMU_PROC_CRAWL:

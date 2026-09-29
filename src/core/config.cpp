@@ -294,6 +294,13 @@ static void loadCheats(cJSON* root)
         readBool(root, Equipment::ConfigKey(mod), &on);
         Equipment::SetEnabled(mod, on);
     }
+    for (int i = 0; i < Equipment::LEVEL_COUNT; ++i) {
+        const Equipment::Level level = (Equipment::Level)i;
+        float value = (float)Equipment::GetLevel(level);
+        readFloat(root, Equipment::LevelKey(level), &value,
+                  (float)Equipment::LevelMin(level), (float)Equipment::LevelMax(level));
+        Equipment::SetLevel(level, (int)value);
+    }
 
     bool textAdvance = Text::AutoAdvanceEnabled();
     readBool(root, "cheatTextAutoAdvance", &textAdvance);
@@ -328,6 +335,10 @@ static void saveCheats(cJSON* root)
     for (int i = 0; i < Equipment::MOD_COUNT; ++i) {
         const Equipment::Mod mod = (Equipment::Mod)i;
         cJSON_AddBoolToObject(root, Equipment::ConfigKey(mod), Equipment::IsEnabled(mod));
+    }
+    for (int i = 0; i < Equipment::LEVEL_COUNT; ++i) {
+        const Equipment::Level level = (Equipment::Level)i;
+        cJSON_AddNumberToObject(root, Equipment::LevelKey(level), Equipment::GetLevel(level));
     }
     cJSON_AddBoolToObject  (root, "cheatTextAutoAdvance", Text::AutoAdvanceEnabled());
 }

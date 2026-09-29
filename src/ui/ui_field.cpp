@@ -6,6 +6,8 @@
 #include "imgui.h"
 #include "imgui_internal.h"
 
+#include <stdlib.h>
+
 namespace Ui {
 namespace Field {
 static const int kRepeatFirstFrames = 9;
@@ -114,6 +116,16 @@ static void releaseNavActivation()
         ImGui::ClearActiveID();
 }
 
+// Keyboard input is applied here, clamped, rather than through ImGui's temp input.
+static bool takeTyped(ImGuiID id, char* text, int capacity)
+{
+    if (!Osk::TakeSubmission((unsigned)id, text, capacity) || !text[0])
+        return false;
+    if (ImGui::GetActiveID() == id)
+        ImGui::ClearActiveID();
+    return true;
+}
+
 static int sliderStep()
 {
     ImGuiContext* g = ImGui::GetCurrentContext();
@@ -196,13 +208,25 @@ bool SliderInt(const char* label, int* value, int minValue, int maxValue,
                const char* format)
 {
     const ImGuiID id = ImGui::GetID(label);
+    bool typedChanged = false;
+    char typed[32];
+    if (takeTyped(id, typed, (int)sizeof(typed))) {
+        long next = strtol(typed, nullptr, 10);
+        if (next < minValue) next = minValue;
+        if (next > maxValue) next = maxValue;
+        typedChanged = next != *value;
+        *value = (int)next;
+    }
+
     const bool toText = takeDoubleTap(id);
     if (toText)
         requestTextInput(id);
     const bool editing = toText || ImGui::TempInputIsActive(id);
 
     bool changed = ImGui::SliderInt(label, value, minValue, maxValue, format,
-                                    editing ? 0 : ImGuiSliderFlags_NoInput);
+                                    ImGuiSliderFlags_AlwaysClamp |
+                                    (editing ? 0 : ImGuiSliderFlags_NoInput));
+    changed |= typedChanged;
     registerField(Osk::FIELD_INT);
     noteNavSlider(id);
     if (!editing)
@@ -226,18 +250,29 @@ bool SliderFloat(const char* label, float* value, float minValue, float maxValue
                  const char* format, int flags)
 {
     const ImGuiID id = ImGui::GetID(label);
+    bool typedChanged = false;
+    char typed[32];
+    if (takeTyped(id, typed, (int)sizeof(typed))) {
+        float next = strtof(typed, nullptr);
+        if (next < minValue) next = minValue;
+        if (next > maxValue) next = maxValue;
+        typedChanged = next != *value;
+        *value = next;
+    }
+
     const bool toText = takeDoubleTap(id);
 
     if (toText)
         requestTextInput(id);
     const bool editing = toText || ImGui::TempInputIsActive(id);
 
-    ImGuiSliderFlags sliderFlags = (ImGuiSliderFlags)flags;
+    ImGuiSliderFlags sliderFlags = (ImGuiSliderFlags)flags | ImGuiSliderFlags_AlwaysClamp;
     if (!editing)
         sliderFlags |= ImGuiSliderFlags_NoInput;
 
     bool changed = ImGui::SliderFloat(label, value, minValue, maxValue, format,
                                       sliderFlags);
+    changed |= typedChanged;
     registerField(Osk::FIELD_FLOAT);
     noteNavSlider(id);
     if (!editing)

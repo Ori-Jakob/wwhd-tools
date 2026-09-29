@@ -93,7 +93,6 @@ RPL_DECL_REPLACE(uint32_t, daPy_procMove, void* self)
 {
     const uint32_t result = real_daPy_procMove(self);
     Cheats::Movement::OnMoveProc(self);
-    Cheats::Equipment::OnMoveProc(self);
     return result;
 }
 

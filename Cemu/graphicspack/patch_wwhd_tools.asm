@@ -25,7 +25,7 @@ _mode_stats:
 .int 0, 0, 0, 0, 0, 0, 0, 0
 .int 0, 0, 0, 0, 0, 0, 0, 0
 _pk_version:
-.int 3
+.int 4
 _pk_copy_stub:
 .int 0
 _pk_mod_flags:
@@ -887,6 +887,89 @@ armorcost_free:
     li    r0, 0
     b     _armorCost_rest
 
+; Iron Boots walk: the heavy-state calls that shape walking answer without the boots bit
+heavy_noboots:
+    lis    r12, _pk_mod_flags@ha
+    lwz    r12, _pk_mod_flags@l(r12)
+    andi.  r12, r12, 2
+    beq    heavy_real
+    lwz    r12, 0x3B8(r3)
+    andis. r0, r12, 0x0200
+    beq    heavy_real
+    stwu   r1, -0x20(r1)
+    mflr   r0
+    stw    r0, 0x24(r1)
+    stw    r3, 0x10(r1)
+    rlwinm r12, r12, 0, 7, 5
+    stw    r12, 0x3B8(r3)
+    bl     _checkHeavyStateOn
+    lwz    r4, 0x10(r1)
+    lwz    r12, 0x3B8(r4)
+    oris   r12, r12, 0x0200
+    stw    r12, 0x3B8(r4)
+    lwz    r0, 0x24(r1)
+    mtlr   r0
+    addi   r1, r1, 0x20
+    blr
+
+heavy_real:
+    b      _checkHeavyStateOn
+
+; Super Hookshot: any surface sticks except lava (6) and void (8)
+hsstick_hook:
+    rlwinm r3, r9, 0, 27, 27
+    lis    r11, _pk_mod_flags@ha
+    lwz    r11, _pk_mod_flags@l(r11)
+    andi.  r11, r11, 4
+    beq    hsstick_done
+    lwz    r10, 4(r12)
+    rlwinm r10, r10, 16, 27, 31
+    cmpwi  r10, 6
+    beq    hsstick_done
+    cmpwi  r10, 8
+    beq    hsstick_done
+    li     r3, 0x10
+hsstick_done:
+    b      _hsStick_rest
+
+; Super Hookshot chain draw: real length at the draw pitch, spacing stretched past 300 links
+hsdraw_hook:
+    lfs    f11, 0x16C0(r7)
+    lis    r8, 0x4330
+    stw    r8, 0x18(r1)
+    stw    r31, 0x1C(r1)
+    lfd    f13, 0x18(r1)
+    lfd    f0, 0x16B8(r7)
+    fsub   f13, f13, f0
+    fmul   f13, f13, f11
+    fneg   f10, f12
+    fsub   f9, f11, f10
+    lfs    f8, 0x1734(r7)
+    fmadd  f13, f9, f8, f13
+    fdiv   f9, f13, f10
+    fctiwz f9, f9
+    stfd   f9, 0x18(r1)
+    lwz    r9, 0x1C(r1)
+    cmpwi  r9, 300
+    ble    hsdraw_fit
+    li     r9, 300
+    stw    r8, 0x18(r1)
+    stw    r9, 0x1C(r1)
+    lfd    f11, 0x18(r1)
+    fsub   f11, f11, f0
+    fdiv   f11, f13, f11
+    frsp   f11, f11
+    fneg   f12, f11
+    b      hsdraw_out
+hsdraw_fit:
+    fmr    f11, f10
+    cmpwi  r9, 1
+    bge    hsdraw_out
+    li     r9, 1
+hsdraw_out:
+    mr     r31, r9
+    b      _hsDraw_rest
+
 0x0200E6EC = b   counter_hook
 0x0200E558 = b   ccsmove_hook
 0x02035274 = bla context_hook
@@ -905,6 +988,9 @@ moduleMatches = 0x475bd29f
 0x0242C810 = _daPy_procCrawl_rest:
 0x0242F710 = _daPy_procSwim_rest:
 0x023F4D20 = _armorCost_rest:
+0x023DBC24 = _checkHeavyStateOn:
+0x024EF48C = _hsStick_rest:
+0x02176B30 = _hsDraw_rest:
 
 0x025D42EC = b   execute_hook
 0x026FF5AC = b   msgbox_hook
@@ -917,6 +1003,21 @@ moduleMatches = 0x475bd29f
 0x0242C80C = b   proccrawl_hook
 0x0242F70C = b   procswim_hook
 0x023F4D1C = b   armorcost_hook
+0x023E15E0 = bla heavy_noboots
+0x023E16C4 = bla heavy_noboots
+0x023E1C40 = bla heavy_noboots
+0x023E1C50 = bla heavy_noboots
+0x023E8518 = bla heavy_noboots
+0x023F41C0 = bla heavy_noboots
+0x024165AC = bla heavy_noboots
+0x0241684C = bla heavy_noboots
+0x024162B8 = bla heavy_noboots
+0x023EA6B4 = bla heavy_noboots
+0x024EF488 = b   hsstick_hook
+0x02176B2C = b   hsdraw_hook
+0x02176EFC = nop
+0x02432DB0 = lis r8, 0x1001
+0x02432DC0 = lfs f1, 0x1724(r8)
 
 0x027510A4 = bla copy_hook
 0x027B9938 = bla copy_hook
@@ -956,6 +1057,9 @@ moduleMatches = 0xb7e748de
 0x0242C814 = _daPy_procCrawl_rest:
 0x0242F714 = _daPy_procSwim_rest:
 0x023F4D24 = _armorCost_rest:
+0x023DBC28 = _checkHeavyStateOn:
+0x024EF490 = _hsStick_rest:
+0x02176B30 = _hsDraw_rest:
 
 0x025D42AC = b   execute_hook
 0x026FFE68 = b   msgbox_hook
@@ -968,6 +1072,21 @@ moduleMatches = 0xb7e748de
 0x0242C810 = b   proccrawl_hook
 0x0242F710 = b   procswim_hook
 0x023F4D20 = b   armorcost_hook
+0x023E15E4 = bla heavy_noboots
+0x023E16C8 = bla heavy_noboots
+0x023E1C44 = bla heavy_noboots
+0x023E1C54 = bla heavy_noboots
+0x023E851C = bla heavy_noboots
+0x023F41C4 = bla heavy_noboots
+0x024165B0 = bla heavy_noboots
+0x02416850 = bla heavy_noboots
+0x024162BC = bla heavy_noboots
+0x023EA6B8 = bla heavy_noboots
+0x024EF48C = b   hsstick_hook
+0x02176B2C = b   hsdraw_hook
+0x02176EFC = nop
+0x02432DB4 = lis r8, 0x1001
+0x02432DC4 = lfs f1, 0x1724(r8)
 
 0x02751960 = bla copy_hook
 0x027BA1F8 = bla copy_hook

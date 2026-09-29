@@ -70,6 +70,8 @@ bool s_wantedLast = false;
 bool s_suppressUntilFocusLost = false;
 
 char s_text[kMaxText] = {0};
+char s_submitText[kMaxText] = {0};
+unsigned s_submitId = 0;
 int  s_len = 0;
 int  s_cursor = 0;
 int  s_maxChars = 0;
@@ -483,6 +485,8 @@ void restoreNavAfterEdit()
 void submitToField()
 {
     rememberRestoreTarget();
+    s_submitId = (unsigned)ImGui::GetActiveID();
+    memcpy(s_submitText, s_text, (size_t)s_len + 1);
     ImGuiInputTextState* st = ImGui::GetInputTextState(ImGui::GetActiveID());
     if (st) {
         st->ClearText();
@@ -532,6 +536,16 @@ bool IsOpen()
     return s_open;
 }
 
+bool TakeSubmission(unsigned id, char* out, int capacity)
+{
+    if (!id || id != s_submitId || !out || capacity <= 0)
+        return false;
+    s_submitId = 0;
+    strncpy(out, s_submitText, (size_t)capacity - 1);
+    out[capacity - 1] = '\0';
+    return true;
+}
+
 void RegisterField(unsigned id, int kind, int maxChars)
 {
     if (!id)
@@ -558,6 +572,7 @@ void OnApplicationStart()
     s_fieldCount = 0;
     s_open = false;
     s_deactivatePending = false;
+    s_submitId = 0;
     s_shift = SHIFT_OFF;
     s_row = 1;
     s_col = 0;
@@ -616,6 +631,7 @@ bool ProcessInput(ImGuiIO& io)
 
     if (wants && !s_wantedLast && !s_suppressUntilFocusLost && !s_open) {
         s_open = true;
+        s_submitId = 0;
         s_shift = SHIFT_OFF;
         s_row = 0;
         s_col = 0;

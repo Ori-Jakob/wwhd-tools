@@ -31,6 +31,9 @@ enum {
 
 namespace App {
 extern bool g_underCemu;
+
+// The pack block's version as last published, 0 before the first frame or off Cemu.
+uint32_t PackVersion();
 }
 
 RPL_EXPORT uint32_t rpl_cemu_entry(uint32_t reason, void* a, void* b, void* c);
