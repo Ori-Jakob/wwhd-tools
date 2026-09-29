@@ -70,6 +70,26 @@ static bool overlayOwnsInput()
     return s_menuOpen || QuickAccess::IsPageFocused();
 }
 
+// A touch that began while the game was blocked stays blocked until the finger lifts.
+static bool s_touchSwallowed = false;
+
+static bool blockWanted(uint32_t held, bool touchOnWidget, bool touching)
+{
+    const bool block = overlayOwnsInput() || Osk::IsOpen() || Watermark::IsInteracting() ||
+                       touchOnWidget || Hotkeys::OverlayComboHeld(held) ||
+                       Tools::FlyCam::IsActive();
+    if (!touching)
+        s_touchSwallowed = false;
+    else if (block)
+        s_touchSwallowed = true;
+    return block || s_touchSwallowed;
+}
+
+static bool blockWantedNow()
+{
+    return blockWanted(Input::Current().held, false, Input::GetTouchPoint(nullptr, nullptr));
+}
+
 void SetMenuOpen(bool open)
 {
     if (s_menuOpen == open)
@@ -84,7 +104,7 @@ void SetMenuOpen(bool open)
         Rebind::Cancel();
     if (open && !QuickAccess::OnMenuOpened())
         Menu::OnOpened();
-    Input::SetBlockGameInput(overlayOwnsInput());
+    Input::SetBlockGameInput(blockWantedNow());
 }
 
 void OnApplicationStart()
@@ -92,6 +112,7 @@ void OnApplicationStart()
     s_started = true;
     s_initToastShown = false;
     s_menuOpen = false;
+    s_touchSwallowed = false;
     s_lastFrameTime = 0;
     s_frameSeconds = 0.0f;
 
@@ -127,20 +148,15 @@ void OnApplicationEnd()
     Notifications::Clear();
 }
 
-static bool blockWanted(uint32_t held, bool touchOnWidget)
-{
-    return overlayOwnsInput() || Osk::IsOpen() || Watermark::IsInteracting() ||
-           touchOnWidget || Hotkeys::OverlayComboHeld(held) || Tools::FlyCam::IsActive();
-}
-
 void OnPadSampled()
 {
     uint32_t held = 0;
     float tx = -1.0f, ty = -1.0f;
     if (!Input::PeekLive(&held, &tx, &ty))
         return;
-    const bool onWidget = tx >= 0.0f && Watermark::HitTest(tx, ty);
-    Input::SetBlockGameInput(blockWanted(held, onWidget));
+    const bool touching = tx >= 0.0f;
+    const bool onWidget = touching && Watermark::HitTest(tx, ty);
+    Input::SetBlockGameInput(blockWanted(held, onWidget, touching));
 }
 
 static bool touchReachesMenu()
@@ -198,7 +214,7 @@ void Tick()
     if (!Rebind::BlocksMenuInput() && QuickAccess::HandleBack())
         Input::DrainHeld();
     const bool ownsInput = overlayOwnsInput();
-    Input::SetBlockGameInput(blockWanted(Input::Current().held, false));
+    Input::SetBlockGameInput(blockWantedNow());
     Hotkeys::Tick();
     Rebind::Tick();
 
