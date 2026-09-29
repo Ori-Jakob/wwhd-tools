@@ -175,9 +175,7 @@ void DrawSettingsWindow()
         ImGui::SameLine();
         ImGui::TextDisabled("(?)");
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Procedure ids are verified; the names are inferred "
-                              "from the GameCube build and may be wrong. Long "
-                              "names also overflow a narrow window.");
+            ImGui::SetTooltip("Shows the name of the Action procedure along with its ID.");
         if (ImGui::Checkbox("Show the boat's values while sailing", &s_boatValues))
             Config::MarkDirty();
     }

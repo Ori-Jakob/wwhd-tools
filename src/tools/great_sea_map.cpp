@@ -147,11 +147,11 @@ const char* Blocker(Action action)
     if (!OnGreatSea())
         return "Only on the Great Sea.";
     if (!daPy_lk_c_getPlayer())
-        return "Link is not spawned.";
+        return "Link isn't loaded yet.";
     if (IsBusy() || Coordinates::IsBusy() || SaveStates::IsBusy())
         return "Still busy with the last move.";
     if (dComIfGp_isNextStagePending())
-        return "A stage change is queued.";
+        return "Wait for the area to load.";
     if (dEvt_isEventRunning())
         return "Not during a cutscene.";
 

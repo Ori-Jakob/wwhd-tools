@@ -45,7 +45,6 @@ struct State {
     u32             realExec;
     bool            execOn;
     float           fovRatio;
-    float           gameFov, shownFov;
 };
 
 static State s;
@@ -125,12 +124,10 @@ static void scaleFov(u8* process)
     if (fabsf(want - s.fovRatio) < 0.001f)
         s.fovRatio = want;
 
-    s.gameFov = view->mFovy;
     float fov = view->mFovy * s.fovRatio;
     if (fov < kFovMin) fov = kFovMin;
     if (fov > kFovMax) fov = kFovMax;
     view->mFovy = fov;
-    s.shownFov = fov;
 }
 
 // view_setup refills the view every execute, so scaling after it never compounds.
@@ -176,7 +173,6 @@ static void setFovHook(bool on)
         Logger::Log("[camera] fov hook on, execute %08X", (unsigned)s.realExec);
     } else {
         WuPatch::Data::SetEnabled(s.execSwap, false);
-        s.gameFov = s.shownFov = 0.0f;
         Logger::Log("[camera] fov hook off");
     }
     s.execOn = on;
@@ -221,9 +217,6 @@ void OnCameraRun(void* camera)
         Logger::Log("[camera] manual mode released");
     }
 }
-
-float GameFov()  { return s.gameFov; }
-float ShownFov() { return s.shownFov; }
 
 void OnApplicationStart()
 {

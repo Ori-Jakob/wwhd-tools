@@ -389,7 +389,7 @@ static void drawRunList(int count)
             else
                 ImGui::Text("%u", (unsigned)held);
             if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("%u frames with B held over, %u presses with no attack",
+                ImGui::SetTooltip("%u frames B wasn't released, %u presses that didn't attack",
                                   (unsigned)held, (unsigned)wasted);
         }
     }

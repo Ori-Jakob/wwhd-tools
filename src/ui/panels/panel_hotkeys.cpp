@@ -73,9 +73,8 @@ void DrawHotkeysWindow()
                 }
                 if (ImGui::IsItemHovered())
                     ImGui::SetTooltip(inclusive
-                        ? "Inclusive: works while these buttons are held, even with others down."
-                        : "Exclusive: works only when exactly these buttons are held.\n"
-                          "Analog sticks never count.");
+                        ? "Works even with other buttons held."
+                        : "Works only with exactly these buttons held.");
 
                 ImGui::TableNextColumn();
                 RebindUi::DrawRebindButton(Rebind::DOMAIN_HOTKEYS, i);

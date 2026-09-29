@@ -7,7 +7,6 @@
 #include "hud/hud_collision.h"
 #include "render/scene_depth.h"
 #include "hud/hud_frame_stats.h"
-#include "tools/camera.h"
 #include "hud/hud_game_info.h"
 #include "hud/hud_input_viewer.h"
 #include "hud/hud_zombie_hover.h"
@@ -36,12 +35,13 @@ static bool drawFlyCam(const Control::Descriptor* d, Control::Surface)
     }
     if (ImGui::IsItemHovered()) {
         ImGui::BeginTooltip();
-        Hotkey::DrawText(Hotkeys::Get(Hotkeys::HOTKEY_FLY_CAM), "Press ",
-                         " to enter Fly Cam");
-        ImGui::TextUnformatted("L3 leaves and restores the camera; R3 teleports Link to the camera");
-        ImGui::TextUnformatted("D-pad Down un/freeze world");
-        ImGui::TextUnformatted("Left/right stick moves/looks, ZR/ZL rise/descend");
-        ImGui::TextUnformatted("R/L double/halve speed; hold A/B for max/min speed");
+        Hotkey::DrawText(Hotkeys::Get(Hotkeys::HOTKEY_FLY_CAM), "Press ", " to enter");
+        ImGui::TextUnformatted("Left stick: move, right stick: look");
+        ImGui::TextUnformatted("ZR/ZL: up/down");
+        ImGui::TextUnformatted("R/L: faster/slower, hold A/B: max/min speed");
+        ImGui::TextUnformatted("D-pad Down: freeze the world");
+        ImGui::TextUnformatted("R3: move Link to the camera");
+        ImGui::TextUnformatted("L3: exit");
         ImGui::EndTooltip();
     }
     return changed;
@@ -53,8 +53,7 @@ static bool drawModernCam(const Control::Descriptor* d, Control::Surface)
     if (changed)
         Config::MarkDirty();
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Right stick up/down looks up/down instead of zooming, and the camera\n"
-                          "stays where you leave it. ZL puts it back behind Link.");
+        ImGui::SetTooltip("Right stick up/down looks up/down instead of zooming.");
     return changed;
 }
 
@@ -82,14 +81,8 @@ static bool drawFov(const Control::Descriptor* d, Control::Surface)
     bool changed = Field::SliderFloat(d->name, &s.cameraFov, 30.0f, 110.0f, "%.0f");
     if (changed)
         s.cameraFov = floorf(s.cameraFov + 0.5f);
-    if (ImGui::IsItemHovered()) {
-        const float shown = Tools::Camera::ShownFov();
-        if (shown > 0.0f)
-            ImGui::SetTooltip("Vertical, in degrees; the game uses 60.\nNow %.1f (game %.1f)",
-                              (double)shown, (double)Tools::Camera::GameFov());
-        else
-            ImGui::SetTooltip("Vertical, in degrees; the game uses 60.");
-    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("The game's default is 60.");
     ImGui::SameLine();
     ImGui::BeginDisabled(s.cameraFov == 60.0f);
     if (ImGui::Button("Reset##fov")) {
@@ -112,7 +105,7 @@ static bool drawFovOptions(const Control::Descriptor*, Control::Surface)
     if (changed)
         Config::MarkDirty();
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Off: only the Link and boat cameras use it; events keep the game's view.");
+        ImGui::SetTooltip("Off: only while you control the camera.");
     ImGui::Unindent();
     return changed;
 }
@@ -139,7 +132,7 @@ static bool drawZombieHover(const Control::Descriptor* d, Control::Surface)
         Config::MarkDirty();
     }
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Rates each hover input (perfect/good/ok/bad) and can heal you instead of a game over.");
+        ImGui::SetTooltip("Rates your zombie hover inputs.");
     return changed;
 }
 
@@ -158,27 +151,24 @@ static bool drawZombieHoverOptions(const Control::Descriptor*, Control::Surface 
     Config::Settings& s = Config::g_settings;
     changed |= ImGui::Checkbox("Heal instead of game over##zh", &s.zombieHoverHeal);
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("At zero life, a quarter heart is given the frame the game would start the\n"
-                          "death sequence, so a missed or finished hover never ends in a game over.");
+        ImGui::SetTooltip("Gives you a quarter heart instead of a game over.");
     if (ImGui::Button("1/4 heart, no fairies##zh"))
         Tools::ZombieHover::SetupPractice();
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Sets life to one quarter heart and empties every bottled fairy, so the\n"
-                          "next hit is lethal and nothing revives Link.");
+        ImGui::SetTooltip("Sets you up so the next hit is lethal.");
     ImGui::SameLine();
     ImGui::BeginDisabled(!Tools::ZombieHover::CanRestorePractice());
     if (ImGui::Button("Restore##zh"))
         Tools::ZombieHover::RestorePractice();
     ImGui::EndDisabled();
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-        ImGui::SetTooltip("Puts back the life and the fairies taken, into bottles that are still empty.");
+        ImGui::SetTooltip("Gives back the hearts and fairies that were taken.");
     changed |= ImGui::Checkbox("Auto hover: perfect inputs only##zh", &s.zombieHoverSimPerfect);
     ImGui::SameLine(0.0f, 0.0f);
     Hotkey::DrawText(Hotkeys::Get(Hotkeys::HOTKEY_ZOMBIE_SIM), " (hold ", ")", true);
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Hold it and take a lethal hit: ZL+A gets Link up into the hover, then B is\n"
-                          "pressed for you - every 2 frames with this on, otherwise a mix of perfect,\n"
-                          "good, ok and bad gaps that still climbs on average.");
+        ImGui::SetTooltip("Hold the hotkey and take a lethal hit to hover automatically.\n"
+                          "Off: not every press is perfect.");
     if (changed)
         Config::MarkDirty();
     ImGui::Unindent();
@@ -232,8 +222,7 @@ static bool drawInputViewerOpacity(const Control::Descriptor*, Control::Surface)
         changed = true;
     }
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("The units the game's pad layer converts the VPAD and KPAD\n"
-                          "floats to, instead of -1.00..1.00.");
+        ImGui::SetTooltip("Instead of -1.00 to 1.00.");
     ImGui::Unindent();
     return changed;
 }
@@ -261,8 +250,7 @@ static bool drawCollisionOptions(const Control::Descriptor*, Control::Surface)
     changed |= ImGui::Checkbox("Body##col", &s.collisionCo);
     changed |= ImGui::Checkbox("Grass/trees##col", &s.collisionMass);
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Grass, trees and flowers own no collision object; the game\n"
-                          "asks a shared cylinder per instance instead. Shown as outlines.");
+        ImGui::SetTooltip("Shows grass, tree and flower hitboxes as outlines.");
     changed |= ImGui::Checkbox("Stage mesh##col", &s.collisionMesh);
     changed |= ImGui::Checkbox("Depth test##col", &s.collisionDepth);
     ImGui::SameLine();
@@ -341,27 +329,32 @@ void RegisterControls()
     Control::Register(collision);
 }
 
-void DrawTools()
+static void drawSaveDataSection()
 {
-    QuickAccess::DrawMenuItem();
-
-    ImGui::SeparatorText("Save data");
     DrawInventoryItem();
     DrawSaveStatesItem();
     DrawSaveLoaderItem();
+}
 
-    ImGui::SeparatorText("Macros");
+static void drawMacrosSection()
+{
     Control::Draw("tools.mss", Control::SURFACE_MENU);
+}
 
-    ImGui::SeparatorText("Trainers");
+static void drawTrainersSection()
+{
     Control::Draw("tools.zombie_hover", Control::SURFACE_MENU);
+}
 
-    ImGui::SeparatorText("Camera");
+static void drawCameraSection()
+{
     Control::Draw("camera.fly_cam", Control::SURFACE_MENU);
     Control::Draw("camera.modern", Control::SURFACE_MENU);
     Control::Draw("camera.fov", Control::SURFACE_MENU);
+}
 
-    ImGui::SeparatorText("Stage");
+static void drawStageSection()
+{
     if (ImGui::Button("Reset game"))
         Tools::StageControl::ResetGame();
     ImGui::SameLine(0.0f, 0.0f);
@@ -372,8 +365,10 @@ void DrawTools()
     Hotkey::DrawText(Hotkeys::Get(Hotkeys::HOTKEY_STAGE_RELOAD), "  ", nullptr, true);
     DrawCoordinatesItem();
     DrawGreatSeaMapItem();
+}
 
-    ImGui::SeparatorText("HUD");
+static void drawHudSection()
+{
     Control::Draw("hud.game_info", Control::SURFACE_MENU);
     ImGui::SameLine();
     Hud::GameInfo::DrawSettingsButton();
@@ -382,6 +377,19 @@ void DrawTools()
     ImGui::SameLine();
     Hud::FrameStats::DrawSettingsButton();
     Control::Draw("hud.collision", Control::SURFACE_MENU);
+}
+
+void DrawTools()
+{
+    QuickAccess::DrawMenuItem();
+    ImGui::Separator();
+
+    if (ImGui::BeginMenu("Save data")) { drawSaveDataSection(); ImGui::EndMenu(); }
+    if (ImGui::BeginMenu("Macros"))    { drawMacrosSection();   ImGui::EndMenu(); }
+    if (ImGui::BeginMenu("Trainers"))  { drawTrainersSection(); ImGui::EndMenu(); }
+    if (ImGui::BeginMenu("Camera"))    { drawCameraSection();   ImGui::EndMenu(); }
+    if (ImGui::BeginMenu("Stage"))     { drawStageSection();    ImGui::EndMenu(); }
+    if (ImGui::BeginMenu("HUD"))       { drawHudSection();      ImGui::EndMenu(); }
 }
 }
 }

@@ -37,8 +37,7 @@ void DrawSettings()
     ImGui::SetNextItemWidth(kItemWidth);
     Field::SliderInt("UI scale", &s_scalePercent, 100, 200, "%d%%");
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Larger widgets and text on both screens; the GamePad's touch\n"
-                          "targets grow with them.");
+        ImGui::SetTooltip("Size of the menu and its text.");
     s_scaleHeld = ImGui::IsItemActive() || Field::IsSteeringSlider();
     const float wantedScale = (float)s_scalePercent / 100.0f;
     if (!s_scaleHeld && wantedScale != s.uiScale) {
@@ -70,15 +69,13 @@ void DrawSettings()
         if (ImGui::Checkbox("Render HUD windows to the TV", &s.hudToTv))
             Config::MarkDirty();
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Game Info, Input Viewer and Frame Stats go to the TV while the\n"
-                              "game is on it. In off-TV play they stay on the GamePad.");
+            ImGui::SetTooltip("Shows Game Info, Input Viewer and Frame Stats on the TV.");
     }
     if (ImGui::Checkbox("HUD windows on the game's screen only", &s.hudOnGameScreen))
         Config::MarkDirty();
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Game Info, Input Viewer and Frame Stats stay off a screen the\n"
-                          "game is not on: the GamePad's map in TV play, the TV in off-TV\n"
-                          "play. The menu still goes where Drawn Screen sends it.");
+        ImGui::SetTooltip("Hides Game Info, Input Viewer and Frame Stats on the screen\n"
+                          "you aren't playing on.");
     if (ImGui::Checkbox("Startup toast", &s.showInitToast))
         Config::MarkDirty();
 
@@ -117,7 +114,7 @@ void DrawSettings()
     bool loadPadChanged = false;
     loadPadChanged |= ImGui::RadioButton("Auto##loadpad", &loadPad, Config::LOAD_CONTROLLER_AUTO);
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("The controller that last had a button or stick in use.");
+        ImGui::SetTooltip("Uses the controller you pressed last.");
     ImGui::SameLine();
     loadPadChanged |= ImGui::RadioButton("Gamepad##loadpad", &loadPad,
                                          Config::LOAD_CONTROLLER_GAMEPAD);
