@@ -40,8 +40,14 @@ jobs:
 
       - name: Install host tools
         run: |
-          apt-get update
-          apt-get install -y --no-install-recommends python3 zip bzip2
+          missing=""
+          for tool in python3 zip bzip2; do
+            command -v "$tool" > /dev/null || missing="$missing $tool"
+          done
+          if [ -n "$missing" ]; then
+            apt-get update || echo "::warning::apt-get update had errors; installing from what it fetched"
+            apt-get install -y --no-install-recommends $missing
+          fi
 
       - name: Cache WUPS and WUMS
         id: wups-cache

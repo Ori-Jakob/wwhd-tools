@@ -94,6 +94,7 @@ static volatile u32 s_zonesRestored = 0;
 static volatile s32 s_holdFrames = 0;
 static volatile s32 s_holdPending = 0;
 static volatile s32 s_holdDeferred = 0;
+static volatile s32 s_holdOldStage = 0;
 static volatile u32 s_padSet = 0;
 
 static OSThread       s_thread;
@@ -291,11 +292,15 @@ static int scenePhase1Hook(void* scene)
         OSMemoryBarrier();
         // Old scene archives are only freed once the loader idles, so wait for it.
         const bool banks = !s_fromTitle || dComIfG_commonBgmBanksReady() != 0;
-        if ((!wwhd_resLoaderSettled() || !banks) && s_holdFrames < kLoaderHoldMax) {
+        // Releasing the old stage archive destroys the heaps the new one would load into.
+        const bool oldStage = dComIfG_getStageRes("Stage", "stage.dzs") != nullptr;
+        if ((!wwhd_resLoaderSettled() || !banks || oldStage) && s_holdFrames < kLoaderHoldMax) {
             if (s_holdFrames == 0) {
                 s_holdPending  = wwhd_resLoaderPending();
                 s_holdDeferred = wwhd_resLoaderDeferred();
             }
+            if (oldStage)
+                s_holdOldStage = s_holdOldStage + 1;
             s_holdFrames = s_holdFrames + 1;
             return 0;
         }
@@ -386,7 +391,7 @@ static void logLoadState(const char* tag)
                 "next=%.7s enable=%d | link=%d proc=%d demo=%u | overlap=%08X busy=%d "
                 "bgm=%u bgmBusy=%d | event=%u camPlay=%u | audio stage cur=%d req=%d "
                 "track playing=%08X pending=%08X request=%d restart=%d "
-                "banks=%u/%u changed=%d/%d | loader=%d/%d pad=%d hold=%d",
+                "banks=%u/%u changed=%d/%d | loader=%d/%d pad=%d hold=%d stageRes=%d",
                 tag, (int)s_phase, s_frames, (int)s_installed,
                 (int)fopScn_getName(fopScnM_getStageScene()), dComIfGp_getCurStageName(),
                 dComIfGp_getNextStageName(), dComIfGp_isNextStagePending(),
@@ -401,7 +406,8 @@ static void logLoadState(const char* tag)
                 (unsigned)mDoAud_getBankSet(), (unsigned)mDoAud_getBankSet2(),
                 mDoAud_bankSetChanged(), mDoAud_bankSet2Changed(),
                 (int)wwhd_resLoaderPending(), (int)wwhd_resLoaderDeferred(),
-                (int)wwhd_getDisplayMode(), (int)s_holdFrames);
+                (int)wwhd_getDisplayMode(), (int)s_holdFrames,
+                dComIfG_getStageRes("Stage", "stage.dzs") != nullptr);
 }
 
 static void abortLoad(const char* why)
@@ -578,6 +584,7 @@ static bool beginBlockLoad(const dSv_info_c* block, const char* stage, s16 point
     s_holdFrames    = 0;
     s_holdPending   = 0;
     s_holdDeferred  = 0;
+    s_holdOldStage  = 0;
     s_padSet        = 0;
     s_padBefore     = wwhd_getDisplayMode();
     s_padWanted     = wantedPadMode();
@@ -799,10 +806,10 @@ static void tickLoad()
             OSMemoryBarrier();
             if (s_holdFrames > 0)
                 Logger::Log("[savestate] phase_1 held %d frames%s: loader pending %d deferred %d "
-                            "at first, banks %d",
+                            "at first, banks %d, old stage archive for %d frames",
                             (int)s_holdFrames, s_holdFrames >= kLoaderHoldMax ? " (gave up)" : "",
                             (int)s_holdPending, (int)s_holdDeferred,
-                            dComIfG_commonBgmBanksReady());
+                            dComIfG_commonBgmBanksReady(), (int)s_holdOldStage);
             else
                 Logger::Log("[savestate] phase_1 found the loader settled");
             s_phase = PHASE_SETTLE;
